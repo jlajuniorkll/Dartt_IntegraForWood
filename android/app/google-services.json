@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "488996310972",
+    "firebase_url": "https://integraforwood-default-rtdb.firebaseio.com",
+    "project_id": "integraforwood",
+    "storage_bucket": "integraforwood.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:488996310972:android:17e14e09eb596c022725b9",
+        "android_client_info": {
+          "package_name": "com.example.dartt_integraforwood"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAo-1yaC1twiQ5gmWcebL-8jbWqd310S5k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

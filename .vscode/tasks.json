@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build",
+            "type": "shell",
+            "command": "msbuild",
+            "args": [
+                "/property:GenerateFullPaths=true",
+                "/t:build",
+                // Definir a macro _CRT_SECURE_NO_WARNINGS para desabilitar os avisos
+                "/D_CRT_SECURE_NO_WARNINGS", 
+                // Definir nível de aviso e desabilitar a conversão de avisos em erros
+                "/property:WarningLevel=4",
+                "/property:TreatWarningAsError=false", 
+                "/consoleloggerparameters:NoSummary"
+            ],
+            "group": "build",
+            "presentation": {
+                "reveal": "silent"
+            },
+            "problemMatcher": "$msCompile"
+        }
+    ]
+}
