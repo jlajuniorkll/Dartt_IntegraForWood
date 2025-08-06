@@ -39,8 +39,7 @@ class Cadiredi {
     required this.caddbesq,
     required this.caddbdir,
     required this.caddpdes,
-    this.caddper =
-        9.99, // TODO: // valor padrão 0.00 foi feito isso apenas para deletar registros do database
+    this.caddper = 0.00,
     this.caddqtd = 1,
   });
 

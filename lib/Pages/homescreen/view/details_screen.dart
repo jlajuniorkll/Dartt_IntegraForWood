@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:dartt_integraforwood/Models/outlite.dart';
 import 'package:dartt_integraforwood/Pages/common/widget_loader.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/controller/home_screen_controller.dart';
+import 'package:dartt_integraforwood/Routes/app_routes.dart';
 import 'package:dartt_integraforwood/commom/commom_functions.dart';
 import 'package:dartt_integraforwood/commom/desenha_bordas.dart';
 import 'package:dartt_integraforwood/config/consts.dart';
@@ -10,84 +11,175 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:file_selector/file_selector.dart';
 
+// ignore: must_be_immutable
 class DetailsScreen extends StatelessWidget {
   DetailsScreen({super.key});
 
   final HomeScreenController controller = Get.put(HomeScreenController());
+  String? xmlString;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Integra ForWood')),
+      appBar: AppBar(
+        title: Text('Integra ForWood'),
+        actions: [
+          PopupMenuButton(
+            itemBuilder:
+                (context) => [
+                  PopupMenuItem(
+                    child: ListTile(
+                      leading: Icon(Icons.refresh),
+                      title: Text('Atualizar'),
+                      onTap: () {
+                        controller.sync3Cad();
+                        Navigator.of(context).pop();
+                      },
+                    ),
+                  ),
+                  PopupMenuItem(
+                    child: ListTile(
+                      leading: Icon(Icons.settings),
+                      title: Text('Configurações'),
+                      onTap: () {
+                        Get.toNamed(PageRoutes.settings);
+                      },
+                    ),
+                  ),
+                ],
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  ElevatedButton(
-                    onPressed: () async {
-                      controller.cadiretaSuccess.value = false;
-                      controller.saveOKCadireta.clear();
-                      controller.outliteData.value = Outlite(rif: '');
-                      final XFile? file = await openFile(
-                        initialDirectory: diretorioXML,
-                        acceptedTypeGroups: [
-                          XTypeGroup(extensions: ['xml']),
-                        ],
-                      ); // Use openFile do file_selector
+              Center(
+                child: Wrap(
+                  spacing: 8.0, // Espaçamento horizontal entre os botões
+                  runSpacing:
+                      8.0, // Espaçamento vertical entre as linhas de botões
+                  alignment: WrapAlignment.center,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        controller.cadiretaSuccess.value = false;
+                        controller.saveOKCadireta.clear();
+                        controller.outliteData.value = null;
+                        final XFile? file = await openFile(
+                          initialDirectory: diretorioXML,
+                          acceptedTypeGroups: [
+                            XTypeGroup(extensions: ['xml']),
+                          ],
+                        ); // Use openFile do file_selector
 
-                      if (file != null) {
-                        final bytes = await file.readAsBytes();
-                        final xmlString = utf8.decode(bytes);
-                        controller.loadXML(xmlString);
-                      }
-                    },
-                    child: Text('Selecionar arquivo XML'),
-                  ),
-
-                  ElevatedButton(
-                    onPressed: () async {
-                      controller.saveDataBase(
-                        outlite: controller.outliteData.value,
-                      );
-                    },
-                    child: Text('Enviar para ForWood'),
-                  ),
-
-                  GetBuilder<HomeScreenController>(
-                    builder: (ctl) {
-                      if (ctl.databaseOn) {
-                        return const Text(
-                          'FW On: 🟢',
-                          style: TextStyle(fontSize: 12.0),
-                        );
-                      } else {
-                        return const Text(
-                          'FW Off: 🔴',
-                          style: TextStyle(fontSize: 12.0),
-                        );
-                      }
-                    },
-                  ),
-                  GetBuilder<HomeScreenController>(
-                    builder: (ctl) {
-                      if (ctl.databasePro) {
-                        return const Text(
-                          '3Cad On: 🟢',
-                          style: TextStyle(fontSize: 12.0),
-                        );
-                      } else {
-                        return const Text(
-                          '3Cad Off: 🔴',
-                          style: TextStyle(fontSize: 12.0),
-                        );
-                      }
-                    },
-                  ),
-                ],
+                        if (file != null) {
+                          final bytes = await file.readAsBytes();
+                          xmlString = utf8.decode(bytes);
+                          controller.loadXML(xmlString!, file.name);
+                        }
+                      },
+                      icon: Icon(Icons.file_open),
+                      label: Text('Selecionar arquivo XML'),
+                    ),
+                    Obx(
+                      () => ElevatedButton.icon(
+                        onPressed:
+                            controller.outliteData.value == null
+                                ? null
+                                : () async {
+                                  controller.saveDataBase(
+                                    outlite: controller.outliteData.value!,
+                                    xmlString: xmlString,
+                                  );
+                                },
+                        icon: Icon(Icons.send),
+                        label: Text('Enviar para ForWood'),
+                      ),
+                    ),
+                    Obx(
+                      () => ElevatedButton.icon(
+                        onPressed:
+                            controller.outliteData.value == null
+                                ? null
+                                : () {
+                                  showDialog(
+                                    context: context,
+                                    builder:
+                                        (context) => AlertDialog(
+                                          title: Text(
+                                            'Selecione o tipo de impressão',
+                                          ),
+                                          content: Column(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              ListTile(
+                                                leading: Icon(
+                                                  Icons.shopping_cart,
+                                                ),
+                                                title: Text('Itens Comprados'),
+                                                onTap: () {
+                                                  Navigator.of(context).pop();
+                                                  controller
+                                                      .generateCompradosReport();
+                                                },
+                                              ),
+                                              ListTile(
+                                                leading: Icon(Icons.build),
+                                                title: Text('Itens Fabricados'),
+                                                onTap: () {
+                                                  Navigator.of(context).pop();
+                                                  controller
+                                                      .generateFabricadosReport();
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                  );
+                                },
+                        icon: Icon(Icons.print),
+                        label: Text('Imprimir'),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () {},
+                      icon: Icon(Icons.history),
+                      label: Text('Enviados'),
+                    ),
+                    GetBuilder<HomeScreenController>(
+                      builder: (ctl) {
+                        if (ctl.databaseOn) {
+                          return const Text(
+                            'FW On: 🟢',
+                            style: TextStyle(fontSize: 12.0),
+                          );
+                        } else {
+                          return const Text(
+                            'FW Off: 🔴',
+                            style: TextStyle(fontSize: 12.0),
+                          );
+                        }
+                      },
+                    ),
+                    GetBuilder<HomeScreenController>(
+                      builder: (ctl) {
+                        if (ctl.databasePro) {
+                          return const Text(
+                            '3Cad On: 🟢',
+                            style: TextStyle(fontSize: 12.0),
+                          );
+                        } else {
+                          return const Text(
+                            '3Cad Off: 🔴',
+                            style: TextStyle(fontSize: 12.0),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
               ),
               SizedBox(height: 16),
               Obx(() {

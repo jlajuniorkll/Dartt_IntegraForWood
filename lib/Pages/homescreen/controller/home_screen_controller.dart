@@ -1,12 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dartt_integraforwood/Models/cadiredi.dart';
 import 'package:dartt_integraforwood/Models/cadireta.dart';
 import 'package:dartt_integraforwood/Models/outlite.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/repository/home_screen_repository.dart';
+import 'package:dartt_integraforwood/commom/pdf_service.dart';
 import 'package:dartt_integraforwood/config/consts.dart';
 import 'package:dartt_integraforwood/db/postgres_connection.dart';
 import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:xml/xml.dart';
 import 'package:get/get.dart';
@@ -15,12 +18,14 @@ import 'package:get/get.dart';
 
 class HomeScreenController extends GetxController {
   final homeScreenRepository = HomeScreenRepository();
+  final pdfService = PdfService();
 
   bool databaseOn = false;
   bool databasePro = false;
 
   RxBool isLoading = false.obs;
   RxString statusMessage = ''.obs;
+  RxBool isGeneratingReport = false.obs;
   RxBool saveCadiretaLoading = false.obs;
   RxList saveOKCadireta = [].obs;
   RxBool cadiretaSuccess = false.obs;
@@ -79,12 +84,12 @@ class HomeScreenController extends GetxController {
 
   var dettprezzoLines = RxMap<String, List<String>>();
 
-  Future<void> loadXML(String xmlString) async {
+  Future<void> loadXML(String xmlString, String fileName) async {
     try {
       isLoading.value = true;
       statusMessage.value = 'Analisando arquivo XML...';
       final parsedXml = XmlDocument.parse(xmlString);
-      await extractData(parsedXml);
+      await extractData(parsedXml, fileName);
       statusMessage.value = 'Importado com sucesso...';
       isLoading.value = false;
     } catch (e) {
@@ -92,7 +97,7 @@ class HomeScreenController extends GetxController {
     }
   }
 
-  Future<void> extractData(XmlDocument parsedXml) async {
+  Future<void> extractData(XmlDocument parsedXml, String fileName) async {
     statusMessage.value = 'Extraindo dados do XML...';
     final testas = parsedXml.findAllElements('TESTA');
     final righes = parsedXml.findAllElements('RIGHE').toList();
@@ -171,6 +176,7 @@ class HomeScreenController extends GetxController {
             testa.findElements('RIF').isNotEmpty
                 ? testa.findElements('RIF').first.innerText
                 : '',
+        fileName: fileName,
         itembox: itemBoxList,
       );
 
@@ -261,7 +267,7 @@ class HomeScreenController extends GetxController {
     return itemPecas;
   }
 
-  Future<void> saveDataBase({Outlite? outlite}) async {
+  Future<void> saveDataBase({Outlite? outlite, String? xmlString}) async {
     saveCadiretaLoading.value = true;
     if (outliteData.value != null) {
       await saveCadireta(outliteData.value!);
@@ -294,7 +300,6 @@ class HomeScreenController extends GetxController {
   }
 
   Future<void> saveCadireta(Outlite outlite) async {
-    // TODO: primeiro deleta a tabela cadireta
     int contador = 0; // Defina o valor de cadcont conforme necessário
     int contadorItemPeca = 0; // Defina o valor de cadcont conforme necessário
     int contadorItemCompra = 0; // Defina o valor de cadcont conforme necessário
@@ -304,7 +309,12 @@ class HomeScreenController extends GetxController {
       contador = contador + 1;
       // var codpai = oi.codigo ?? '';
       var despai = oi.des ?? '';
-      var codpai = '${contador}_${oi.codigo!}';
+      var codpai = await executaEspecialESP0019(
+        codbatismomodulo,
+        500,
+        8,
+        contador,
+      );
       Cadireta cadireta = Cadireta(
         cadcont: contador,
         cadpai: '5.8.9999',
@@ -364,7 +374,18 @@ class HomeScreenController extends GetxController {
       // Salva os dados do filho (estrutura)
       for (var itemPeca in oi.itemPecas!) {
         contadorItemPeca = contadorItemPeca + 1;
-        var codpeca = '${contadorItemPeca}_${itemPeca.codpeca!}';
+        String codpeca = itemPeca.codpeca!;
+        if (double.parse(itemPeca.comprimento!) >= 0 &&
+            double.parse(itemPeca.largura!) >= 0 &&
+            double.parse(itemPeca.espessura!) >= 0) {
+          codpeca = await executaEspecialESP0019(
+            codbatismomodulo,
+            500,
+            8,
+            contadorItemPeca,
+          );
+        }
+
         Cadireta cadireta = Cadireta(
           cadcont: contador,
           cadpai: codpai,
@@ -581,7 +602,6 @@ class HomeScreenController extends GetxController {
                     (itemPeca.fitadir?.trim().toUpperCase() == 'S') ? 'S' : 'N',
                 caddpdes: '',
               );
-              // TODO: deletar cadiredi
               final errorCadiredi = await homeScreenRepository.saveCadiredi(
                 cadiredi,
                 contadorItemCompra,
@@ -622,10 +642,130 @@ class HomeScreenController extends GetxController {
       return result;
     }
   }
+
+  void sync3Cad() {}
+
+  Future<void> generateCompradosReport() async {
+    await pdfService.printCompradosReport(outliteData.value!);
+  }
+
+  Future<void> generateFabricadosReport() async {
+    isGeneratingReport.value = true;
+    try {
+      final Map<String, Map<String, double>> fabricados = {};
+
+      for (var itembox in outliteData.value!.itembox!) {
+        for (var itemPecas in itembox.itemPecas!) {
+          final result = await getEstruturaExpandida(
+            itemPecas.codpeca!,
+            itemPecas.variaveis!,
+            itemPecas.comprimento!,
+            itemPecas.largura!,
+            itemPecas.espessura!,
+          );
+          if (result.isNotEmpty && result != "Erro") {
+            List<Map<String, dynamic>> resultados =
+                List<Map<String, dynamic>>.from(json.decode(result));
+            for (var item in resultados) {
+              final fase = item['FASE'] ?? 'Sem Fase';
+              final key = '${item['CODFIG']} - ${item['DESCRICAO']}';
+              if (!fabricados.containsKey(fase)) {
+                fabricados[fase] = {};
+              }
+              fabricados[fase]![key] =
+                  (fabricados[fase]![key] ?? 0) + double.parse(item['QTA']);
+            }
+          }
+        }
+      }
+      await pdfService.printFabricadosReport(outliteData.value!, fabricados);
+    } finally {
+      isGeneratingReport.value = false;
+    }
+  }
 }
 
 getDateFormated(DateTime dateTime) {
   final formatter = DateFormat('yyyy-MM-dd');
   String formattedTime = formatter.format(dateTime);
   return DateTime.parse(formattedTime);
+}
+
+Future<String> executaEspecialESP0019(
+  String batismo,
+  int grupo,
+  int subgrupo,
+  int sequencia,
+) async {
+  String valorCodigo = '';
+  final directory = 'C:\\Industrial';
+  final command = 'ESP0019.exe XX $batismo $grupo $subgrupo';
+
+  try {
+    // Executa o processo via cmd
+    final process = await Process.start(
+      'cmd.exe',
+      ['/c', command],
+      workingDirectory: directory,
+      runInShell: true,
+      mode: ProcessStartMode.normal, // ou .detached se quiser ocultar
+    );
+
+    // Aguarda o término
+    await process.exitCode;
+
+    // Lê o arquivo gerado
+    final caminhoArquivo = '${Directory.systemTemp.path}\\tprodcad.con';
+    final file = File(caminhoArquivo);
+
+    if (await file.exists()) {
+      final lines = await file.readAsLines();
+      for (final linha in lines) {
+        if (linha.contains('&ultproduto')) {
+          valorCodigo = linha.substring(linha.indexOf(' ') + 1).trim();
+          break;
+        }
+      }
+    } else {
+      return 'E_$sequencia';
+    }
+  } catch (e) {
+    return 'C_$sequencia';
+  }
+
+  return valorCodigo;
+}
+
+Future<void> executaEspecialES05072(BuildContext context, int cadcont) async {
+  final directory = 'C:\\Industrial';
+  final command = 'ES05072.exe $cadcont';
+
+  try {
+    final process = await Process.start(
+      'cmd.exe',
+      ['/c', command],
+      workingDirectory: directory,
+      runInShell: true,
+      mode: ProcessStartMode.normal, // ou .detached para ocultar
+    );
+
+    await process.exitCode;
+  } catch (e) {
+    // Exibe um diálogo de erro no Flutter
+    showDialog(
+      // ignore: use_build_context_synchronously
+      context: context,
+      builder:
+          (ctx) => AlertDialog(
+            title: const Text('Erro'),
+            content: Text('Erro ao executar o ES05072:\n$e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+    );
+  }
 }

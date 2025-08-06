@@ -6,12 +6,14 @@ class Outlite {
   String? numero;
   String? dataDesenho;
   String rif = "";
+  String fileName = "";
   List<ItemBox>? itembox;
   Outlite({
     this.data,
     this.numero,
     this.dataDesenho,
     required this.rif,
+    required this.fileName,
     this.itembox,
   });
 
@@ -21,6 +23,7 @@ class Outlite {
       'numero': numero,
       'dataDesenho': dataDesenho,
       'rif': rif,
+      'fileName': fileName,
       'itembox': itembox?.map((x) => x.toMap()).toList(),
     };
   }
@@ -32,6 +35,7 @@ class Outlite {
       dataDesenho:
           map['dataDesenho'] != null ? map['dataDesenho'] as String : null,
       rif: map['rif'] as String,
+      fileName: map['fileName'] as String,
       itembox:
           map['itembox'] != null
               ? List<ItemBox>.from(

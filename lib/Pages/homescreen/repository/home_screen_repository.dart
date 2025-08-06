@@ -82,6 +82,7 @@ class HomeScreenRepository {
     if (connection == null) {
       throw Exception('Erro: Conexão não iniciada');
     }
+    final deleteQuery = Sql.named('DELETE FROM cadireta');
     final query = Sql.named(
       'INSERT INTO cadireta (CADCONT, CADPAI, CADFILHO, CADSTATUS, CADSUSCAD, CADPAINOME, CADFILNOME, CADPAIUM, CADFILUM, CADUSO, CADCOMP, CADLARG, CADESPE, CADPESO, CADFASE, CADGRAV, CADHORA, CADIMPDT, CADIMPHR, CADUSUIMP, CADLOCAL, CADGRPAI, CADSGPAI, CADGRFIL, CADSGFIL, CADPRIEMB, CADPROJ, CADARQUIVO, CADCOBR, CADLABR, CADESBR, CADCLASS, CADPLCOR, CADUSAMED, CADBORINT, CADBORSUP, CADBORINF, CADBORESQ, CADBORDIR, CADPAIAREA, CADTIPFIL, CADPEMBPR, CADPEMBPP, CADINDTER, CADDIMPER, CADAPP, CADARQFIL, CADPESBRU, CADPAIFAN, CADMARCA, CADUSUMA, CADMCONTP, CADMPAI, CADIDLOTE, CADREAP, CADLIGFAN) '
       'VALUES (@CADCONT, @CADPAI, @CADFILHO, @CADSTATUS, @CADSUSCAD, @CADPAINOME, @CADFILNOME, @CADPAIUM, @CADFILUM, @CADUSO, @CADCOMP, @CADLARG, @CADESPE, @CADPESO, @CADFASE, @CADGRAV, @CADHORA, @CADIMPDT, @CADIMPHR, @CADUSUIMP, @CADLOCAL, @CADGRPAI, @CADSGPAI, @CADGRFIL, @CADSGFIL, @CADPRIEMB, @CADPROJ, @CADARQUIVO, @CADCOBR, @CADLABR, @CADESBR, @CADCLASS, @CADPLCOR, @CADUSAMED, @CADBORINT, @CADBORSUP, @CADBORINF, @CADBORESQ, @CADBORDIR, @CADPAIAREA, @CADTIPFIL, @CADPEMBPR, @CADPEMBPP, @CADINDTER, @CADDIMPER, @CADAPP, @CADARQFIL, @CADPESBRU, @CADPAIFAN, @CADMARCA, @CADUSUMA, @CADMCONTP, @CADMPAI, @CADIDLOTE, @CADREAP, @CADLIGFAN)',
@@ -145,6 +146,7 @@ class HomeScreenRepository {
       'CADLIGFAN': '',
     };
     try {
+      await connection.execute(deleteQuery);
       await connection.execute(query, parameters: parameters);
       return "";
     } catch (e) {
@@ -158,6 +160,7 @@ class HomeScreenRepository {
     if (connection == null) {
       throw Exception('Erro: Conexão não iniciada');
     }
+    final deleteQuery = Sql.named('DELETE FROM cadiredi');
     final query = Sql.named(
       'INSERT INTO cadiredi (caddcont, caddpai, caddfil, caddseq, caddcom, caddlar, caddesp, caddcob, caddlab, caddesb, caddcor, caddbint, caddbsup, caddbinf, caddbesq, caddbdir, caddpdes, caddper, caddqtd) '
       'VALUES (@caddcont, @caddpai, @caddfil, @caddseq, @caddcom, @caddlar, @caddesp, @caddcob, @caddlab, @caddesb, @caddcor, @caddbint, @caddbsup, @caddbinf, @caddbesq, @caddbdir, @caddpdes, @caddper, @caddqtd)',
@@ -166,7 +169,7 @@ class HomeScreenRepository {
       'caddcont': cadiredi.cadcont,
       'caddpai': cadiredi.cadpai,
       'caddfil': cadiredi.cadfilho,
-      'caddseq': cadiredi.caddbesq,
+      'caddseq': cadiredi.caddseq,
       'caddcom': cadiredi.caddcom,
       'caddlar': cadiredi.caddlab,
       'caddesp': cadiredi.caddesp,
@@ -184,6 +187,7 @@ class HomeScreenRepository {
       'caddqtd': cadiredi.caddqtd,
     };
     try {
+      await connection.execute(deleteQuery);
       await connection.execute(query, parameters: parameters);
       return "";
     } catch (e) {
