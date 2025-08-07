@@ -10,7 +10,7 @@ import 'package:postgres/postgres.dart';
 class HomeScreenRepository {
   Future<String> getDescricaoProduto(String codigoProduto) async {
     final connection = PostgresConnection().connection;
-    final mssqlConnection = SqlServerConnection().mssqlConnection;
+    final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
 
     if (connection == null) {
       return 'Erro: Conexão não iniciada';
@@ -202,7 +202,7 @@ class HomeScreenRepository {
     double larg,
     double alt,
   ) async {
-    final mssqlConnection = SqlServerConnection().mssqlConnection;
+    final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
 
     String query = "SELECT CodiceDistinta FROM articoli WHERE cod = '$codpeca'";
     String rawResult = await mssqlConnection.getData(
@@ -225,7 +225,7 @@ class HomeScreenRepository {
     double larg,
     double alt,
   ) async {
-    final mssqlConnection = SqlServerConnection().mssqlConnection;
+    final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
 
     // 1. Consulta principal da distinta
     String query =
@@ -348,7 +348,8 @@ class HomeScreenRepository {
 
   // busca descrição do item
   Future<String> buscarDescricao(String codfig) async {
-    final mssqlConnection = SqlServerConnection().mssqlConnection;
+    final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
+
     String query = "SELECT DESCRICAO FROM PRODUTOS WHERE CODFIG = '$codfig'";
     String rawResult = await mssqlConnection.getData(query);
 

@@ -1,0 +1,66 @@
+=================================================
+SOLUÇÃO PARA ERRO DE CERTIFICADO SSL NO ODBC DRIVER 18
+=================================================
+
+Se você está recebendo o erro:
+
+"[Microsoft][ODBC Driver 18 for SQL Server]SSL Provider: A cadeia de certificação foi emitida por uma autoridade que não é de confiança."
+
+E/OU
+
+"[Microsoft][ODBC Driver 18 for SQL Server]Cliente incapaz de estabelecer conexão."
+
+Este documento fornece instruções para resolver o problema.
+
+1. CAUSA DO PROBLEMA
+-------------------
+
+O ODBC Driver 18 para SQL Server tem a criptografia ativada por padrão e tenta validar
+o certificado do servidor. Se o certificado não for confiável (por exemplo, um certificado
+autoassinado), a conexão falha.
+
+2. SOLUÇÕES POSSÍVEIS
+-------------------
+
+Opção 1: Configurar o DSN para confiar no certificado do servidor
+-----------------------------------------------------------------
+
+1. Abra o Administrador de Fontes de Dados ODBC (odbcad32.exe)
+2. Selecione o DSN que está usando e clique em "Configurar"
+3. Avance pelas telas até chegar à tela de configurações adicionais
+4. Marque a opção "Confiar no certificado do servidor" (Trust server certificate)
+   OU selecione "Opcional" na opção de criptografia
+5. Clique em "Concluir" e teste a conexão
+
+Opção 2: Usar o ODBC Driver 17 para SQL Server
+---------------------------------------------
+
+1. Instale o ODBC Driver 17 para SQL Server (se ainda não estiver instalado)
+   Download: https://go.microsoft.com/fwlink/?linkid=2249006
+2. Configure um novo DSN usando o ODBC Driver 17 em vez do Driver 18
+3. Atualize as configurações do aplicativo para usar o novo DSN
+
+Opção 3: Configurar o servidor SQL Server
+----------------------------------------
+
+Se você tem acesso ao servidor SQL Server, pode instalar um certificado confiável
+ou desativar a exigência de criptografia no servidor.
+
+3. VERIFICAÇÃO
+------------
+
+Para verificar se a solução funcionou:
+
+1. Abra o Administrador de Fontes de Dados ODBC
+2. Selecione o DSN configurado
+3. Clique em "Configurar" e depois em "Testar Conexão"
+
+Se o teste for bem-sucedido, o problema foi resolvido.
+
+4. INFORMAÇÕES ADICIONAIS
+-----------------------
+
+Para mais informações sobre este problema, consulte:
+https://learn.microsoft.com/pt-br/troubleshoot/sql/database-engine/connect/certificate-chain-not-trusted
+
+Para suporte adicional, entre em contato com o desenvolvedor do aplicativo.

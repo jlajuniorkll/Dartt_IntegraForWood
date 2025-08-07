@@ -1,0 +1,103 @@
+SOLUÇÃO: CONEXÃO SQL SERVER COM SQLOLEDB NATIVO
+===============================================
+
+IMPLEMENTAÇÃO REALIZADA:
+A aplicação foi modificada para usar SQLOLEDB.1 nativo do Windows, eliminando a dependência de bibliotecas externas e drivers ODBC específicos.
+
+MUDANÇAS TÉCNICAS:
+
+1. REMOÇÃO DE DEPENDÊNCIAS EXTERNAS:
+   - Removida a biblioteca 'mssql_connection' do pubspec.yaml
+   - Adicionadas dependências 'ffi' e 'win32' para acesso nativo ao Windows
+   - Eliminada a necessidade de DLLs externas (msodbcsql18.dll, etc.)
+
+2. NOVA IMPLEMENTAÇÃO SQLOLEDB:
+   - Conexão direta via ODBC32.dll (nativo do Windows)
+   - String de conexão: Provider=SQLOLEDB.1;Data Source=NOTEDARTT\ECADPRO2019;Initial Catalog=Moveis3F1B;User ID=sa;Password=eCadPro2019;TrustServerCertificate=Yes;Encrypt=No;
+   - Sem necessidade de instalação de drivers adicionais
+
+3. CONFIGURAÇÕES ATUALIZADAS:
+   - Host SQL: NOTEDARTT\ECADPRO2019
+   - Usuário: sa
+   - Senha: eCadPro2019
+   - Banco: Moveis3F1B
+   - Porta: 1433
+
+VANTAGENS DA NOVA IMPLEMENTAÇÃO:
+
+✓ SEM DEPENDÊNCIAS EXTERNAS:
+  - Não requer instalação de ODBC Driver 17 ou 18
+  - Não precisa de DLLs adicionais na máquina cliente
+  - Usa apenas componentes nativos do Windows
+
+✓ SEM PROBLEMAS DE SSL:
+  - SQLOLEDB.1 permite desabilitar criptografia facilmente
+  - TrustServerCertificate=Yes ignora problemas de certificado
+  - Encrypt=No desabilita criptografia quando não necessária
+
+✓ COMPATIBILIDADE:
+  - Funciona em qualquer Windows com .NET Framework
+  - Não há diferença entre modo DEBUG e RELEASE
+  - Mesma funcionalidade em desenvolvimento e produção
+
+✓ MANUTENÇÃO SIMPLIFICADA:
+  - Código mais simples e direto
+  - Menos pontos de falha
+  - Diagnóstico mais fácil de problemas
+
+COMO FUNCIONA:
+
+1. A aplicação usa FFI (Foreign Function Interface) para chamar funções ODBC nativas
+2. Conecta diretamente ao SQL Server usando SQLOLEDB.1
+3. Executa queries SQL e retorna resultados em formato JSON
+4. Mantém compatibilidade total com o código existente
+
+TESTE DA CONEXÃO:
+
+1. Execute a aplicação
+2. Verifique se a conexão SQL Server é estabelecida automaticamente
+3. Teste funcionalidades que dependem do banco de dados
+4. Não é necessário configurar ODBC DSN manualmente
+
+SOLUÇÃO DE PROBLEMAS:
+
+Se a conexão ainda falhar:
+
+1. VERIFICAR CONECTIVIDADE:
+   - Ping NOTEDARTT
+   - Telnet NOTEDARTT 1433
+   - Verificar se o SQL Server está rodando
+
+2. VERIFICAR CREDENCIAIS:
+   - Usuário: sa
+   - Senha: eCadPro2019
+   - Banco: Moveis3F1B
+
+3. VERIFICAR CONFIGURAÇÕES SQL SERVER:
+   - TCP/IP habilitado
+   - Porta 1433 aberta
+   - Autenticação mista habilitada
+   - SQL Server Browser rodando (se necessário)
+
+4. VERIFICAR FIREWALL:
+   - Porta 1433 liberada
+   - Exceção para sqlservr.exe
+
+CÓDIGO DE ERRO COMUM:
+Se aparecer erro de "Provider cannot be found", significa que o SQLOLEDB não está disponível. Neste caso:
+- Instale o SQL Server Native Client
+- Ou use MSOLEDBSQL como provider alternativo
+
+OBSERVAÇÕES IMPORTANTES:
+
+- Esta implementação usa SQLOLEDB.1 que é considerado legacy mas ainda suportado
+- Para novos projetos, Microsoft recomenda MSOLEDBSQL, mas SQLOLEDB.1 é mais compatível
+- A conexão é thread-safe e gerencia automaticamente handles ODBC
+- Logs de erro são exibidos no console para diagnóstico
+
+ARQUIVOS MODIFICADOS:
+- lib/db/sqlserver_connection.dart (reescrito completamente)
+- lib/config/consts.dart (configurações atualizadas)
+- pubspec.yaml (dependências atualizadas)
+
+Esta solução elimina definitivamente os problemas de dependências SSL e drivers externos, fornecendo uma conexão robusta e nativa com o SQL Server.

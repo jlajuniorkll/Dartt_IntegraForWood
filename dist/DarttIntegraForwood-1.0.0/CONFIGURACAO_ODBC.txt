@@ -1,0 +1,128 @@
+=================================================
+CONFIGURAÇÃO DE ODBC PARA DARTTINTEGRAFORWOOD
+=================================================
+
+Este documento fornece instruções detalhadas para configurar as conexões ODBC
+necessárias para o funcionamento do aplicativo DarttIntegraForwood.
+
+1. INSTALAÇÃO DE DRIVERS ODBC
+----------------------------
+
+Execute o arquivo "instalar_drivers_odbc.bat" como administrador para verificar
+e instalar os drivers ODBC necessários.
+
+Alternativamente, você pode instalar manualmente os seguintes drivers:
+
+- SQL Server: ODBC Driver 17 (recomendado) ou ODBC Driver 18 para SQL Server
+  Download: https://go.microsoft.com/fwlink/?linkid=2249006
+
+- PostgreSQL (se necessário): psqlODBC
+  Download: https://www.postgresql.org/ftp/odbc/versions/
+
+
+2. CONFIGURAÇÃO DE DSN DE SISTEMA
+--------------------------------
+
+Após instalar os drivers, você precisa configurar as fontes de dados ODBC (DSN):
+
+a) Abra o Administrador de Fontes de Dados ODBC:
+   - Pressione Win+R, digite "odbcad32.exe" e pressione Enter
+   - Ou execute "odbcad32.exe" a partir do Painel de Controle > Ferramentas Administrativas
+
+b) Na aba "DSN de Sistema", clique em "Adicionar"
+
+c) Para SQL Server:
+   - Selecione "ODBC Driver 17 for SQL Server" (recomendado) ou "ODBC Driver 18 for SQL Server"
+   - Clique em "Concluir"
+   - Preencha os campos:
+     * Nome: ForwoodSQL (ou outro nome de sua escolha)
+     * Descrição: Conexão SQL Server para DarttIntegraForwood
+     * Servidor: [endereço do servidor SQL]
+   - Clique em "Avançar"
+   - Escolha o método de autenticação (SQL Server ou Windows)
+   - Se escolher SQL Server, informe o nome de usuário e senha
+   - Clique em "Avançar"
+   - Selecione o banco de dados padrão
+   - Clique em "Avançar"
+   - Na tela de configurações adicionais:
+     * Se estiver usando o ODBC Driver 18, marque a opção "Confiar no certificado do servidor" 
+       (Trust server certificate) ou selecione "Opcional" na opção de criptografia
+   - Clique em "Concluir"
+   - Teste a conexão clicando em "Testar Fonte de Dados"
+
+d) Para PostgreSQL (se necessário):
+   - Selecione "PostgreSQL Unicode" ou "PostgreSQL ANSI"
+   - Clique em "Concluir"
+   - Preencha os campos:
+     * Nome da Fonte de Dados: ForwoodPG (ou outro nome de sua escolha)
+     * Descrição: Conexão PostgreSQL para DarttIntegraForwood
+     * Servidor: [endereço do servidor PostgreSQL]
+     * Porta: [porta do servidor, geralmente 5432]
+     * Banco de Dados: [nome do banco de dados]
+     * Nome de Usuário: [usuário]
+     * Senha: [senha]
+   - Clique em "Salvar"
+   - Teste a conexão clicando em "Testar"
+
+
+3. CONFIGURAÇÃO NO APLICATIVO
+---------------------------
+
+Após configurar as fontes de dados ODBC, inicie o aplicativo DarttIntegraForwood
+e acesse as configurações para definir os parâmetros de conexão:
+
+- Para SQL Server:
+  * Host/IP: [endereço do servidor]
+  * Porta: [porta do servidor, geralmente 1433]
+  * Banco de dados: [nome do banco de dados]
+  * Nome de usuário: [usuário]
+  * Senha: [senha]
+
+- Para PostgreSQL (ForWood):
+  * Host/IP: [endereço do servidor]
+  * Porta: [porta do servidor, geralmente 5432]
+  * Banco de dados: [nome do banco de dados]
+  * Nome de usuário: [usuário]
+  * Senha: [senha]
+
+
+4. SOLUÇÃO DE PROBLEMAS
+---------------------
+
+Se encontrar problemas de conexão:
+
+- Verifique se os drivers ODBC estão instalados corretamente
+- Confirme se as credenciais de acesso estão corretas
+- Verifique se o servidor de banco de dados está acessível na rede
+- Verifique se as portas necessárias estão abertas no firewall
+
+Para testar a conexão ODBC independentemente do aplicativo:
+
+1. Abra o Administrador de Fontes de Dados ODBC
+2. Selecione a fonte de dados configurada
+3. Clique em "Configurar" e depois em "Testar Conexão" ou "Testar Fonte de Dados"
+
+5. PROBLEMAS ESPECÍFICOS COM ODBC DRIVER 18
+-----------------------------------------
+
+Se você estiver usando o ODBC Driver 18 para SQL Server e encontrar erros como:
+"SSL Provider: A cadeia de certificação foi emitida por uma autoridade que não é de confiança"
+ou
+"Cliente incapaz de estabelecer conexão"
+
+Isso ocorre porque o ODBC Driver 18 ativa a criptografia por padrão e tenta validar o certificado
+do servidor. Para resolver este problema, você tem as seguintes opções:
+
+1. Ao configurar o DSN no Administrador de Fontes de Dados ODBC:
+   - Marque a opção "Confiar no certificado do servidor" (Trust server certificate)
+   - OU selecione "Opcional" ou "Não" na opção de criptografia
+
+2. Se estiver usando uma string de conexão direta (não via DSN):
+   - Adicione o parâmetro "TrustServerCertificate=yes" à string de conexão
+   - OU defina "Encrypt=Optional" ou "Encrypt=No" na string de conexão
+
+3. Alternativa: Use o ODBC Driver 17 para SQL Server, que não tem a criptografia
+   ativada por padrão
+
+
+Para suporte adicional, entre em contato com o desenvolvedor do aplicativo.

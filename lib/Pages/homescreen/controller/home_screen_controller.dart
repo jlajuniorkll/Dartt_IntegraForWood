@@ -6,13 +6,13 @@ import 'package:dartt_integraforwood/Models/cadireta.dart';
 import 'package:dartt_integraforwood/Models/outlite.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/repository/home_screen_repository.dart';
 import 'package:dartt_integraforwood/commom/pdf_service.dart';
-import 'package:dartt_integraforwood/config/consts.dart';
 import 'package:dartt_integraforwood/db/postgres_connection.dart';
 import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:xml/xml.dart';
 import 'package:get/get.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Classes Outlite, ItemBox e ItemPecas (fornecidas anteriormente)
 
@@ -29,40 +29,103 @@ class HomeScreenController extends GetxController {
   RxBool saveCadiretaLoading = false.obs;
   RxList saveOKCadireta = [].obs;
   RxBool cadiretaSuccess = false.obs;
+  
+  // Status da conexão SQL Server
+  RxBool sqlServerConnected = false.obs;
+  RxString sqlServerStatus = 'Verificando conexão...'.obs;
+  RxString sqlServerError = ''.obs;
 
   @override
-  void onInit() async {
+  void onInit() {
+    super.onInit();
+    _initializeConnections();
+  }
+  
+  Future<void> _initializeConnections() async {
     await connectDatabase();
     await connectSqlServer();
-    super.onInit();
   }
 
   onDispose() {
     super.dispose();
     PostgresConnection().close();
-    SqlServerConnection().close();
+    SqlServerConnection.getInstance().close();
   }
 
   Future<void> connectDatabase() async {
+    final prefs = await SharedPreferences.getInstance();
+    final host = prefs.getString('hostFW') ?? 'localhost';
+    // Tentar obter porta como int primeiro (compatibilidade), depois como string
+    int port;
+    try {
+      port = prefs.getInt('portFW') ?? 5432;
+    } catch (e) {
+      final portString = prefs.getString('portFW') ?? '5432';
+      port = int.tryParse(portString) ?? 5432;
+    }
+    final database = prefs.getString('databaseFW') ?? '3F1B';
+    final username = prefs.getString('userNameFW') ?? 'postgres';
+    final password = prefs.getString('passwordFW') ?? 'postgres';
+    
     final conected = await PostgresConnection().connect(
-      host: hostFW,
-      port: portFW,
-      database: databaseFW,
-      username: userNameFW,
-      password: passwordFW,
+      host: host,
+      port: port,
+      database: database,
+      username: username,
+      password: password,
     );
     setDatabaseon(conected);
   }
 
   Future<void> connectSqlServer() async {
-    final conected = await SqlServerConnection().connect(
-      ip: hostSQL,
-      port: portSQL,
-      database: databaseSQL,
-      username: userNameSQL,
-      password: passwordSQL,
-    );
-    setDatabasePro(conected);
+    try {
+      sqlServerStatus.value = 'Conectando ao SQL Server...';
+      sqlServerError.value = '';
+      
+      final prefs = await SharedPreferences.getInstance();
+      final ip = prefs.getString('hostSQL') ?? 'NOTEDARTT\\ECADPRO2019';
+      // Tentar obter porta como int primeiro (compatibilidade), depois como string
+      String port;
+      try {
+        final portInt = prefs.getInt('portSQL') ?? 1433;
+        port = portInt.toString();
+      } catch (e) {
+        port = prefs.getString('portSQL') ?? '1433';
+      }
+      final database = prefs.getString('databaseSQL') ?? 'Moveis3F1B';
+      final username = prefs.getString('userNameSQL') ?? 'sa';
+      final password = prefs.getString('passwordSQL') ?? 'eCadPro2019';
+      
+      sqlServerStatus.value = 'Tentando conectar em $ip...';
+      
+      final conected = await SqlServerConnection.getInstance().connectWithProgress(
+        ip: ip,
+        port: port,
+        database: database,
+        username: username,
+        password: password,
+        onProgress: (attempt, total, driver) {
+          sqlServerStatus.value = 'Tentativa $attempt de $total: $driver';
+        },
+      );
+      
+      if (conected) {
+        sqlServerConnected.value = true;
+        sqlServerStatus.value = 'Conectado ao SQL Server ($ip)';
+        sqlServerError.value = '';
+      } else {
+        sqlServerConnected.value = false;
+        sqlServerStatus.value = 'Falha na conexão';
+        sqlServerError.value = 'Não foi possível conectar ao servidor $ip. Verifique:\n• Se o SQL Server está rodando\n• Se o serviço SQL Server Browser está ativo\n• Configurações de firewall\n• Nome da instância e credenciais';
+      }
+      
+      setDatabasePro(conected);
+    } catch (e) {
+      sqlServerConnected.value = false;
+      sqlServerStatus.value = 'Erro na conexão';
+      sqlServerError.value = 'Erro: $e';
+      setDatabasePro(false);
+    }
   }
 
   void setDatabaseon(bool value) {
@@ -304,6 +367,10 @@ class HomeScreenController extends GetxController {
     int contadorItemPeca = 0; // Defina o valor de cadcont conforme necessário
     int contadorItemCompra = 0; // Defina o valor de cadcont conforme necessário
 
+    // Obter o valor de codbatismomodulo do SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    final codbatismomodulo = prefs.getString('codbatismomodulo') ?? '4.1';
+
     // Salva os dados do pai
     for (var oi in outlite.itembox!) {
       contador = contador + 1;
@@ -378,6 +445,10 @@ class HomeScreenController extends GetxController {
         if (double.parse(itemPeca.comprimento!) >= 0 &&
             double.parse(itemPeca.largura!) >= 0 &&
             double.parse(itemPeca.espessura!) >= 0) {
+          // Obter o valor de codbatismomodulo do SharedPreferences
+          final prefs = await SharedPreferences.getInstance();
+          final codbatismomodulo = prefs.getString('codbatismomodulo') ?? '4.1';
+          
           codpeca = await executaEspecialESP0019(
             codbatismomodulo,
             500,
@@ -698,7 +769,11 @@ Future<String> executaEspecialESP0019(
   int sequencia,
 ) async {
   String valorCodigo = '';
-  final directory = 'C:\\Industrial';
+  // Obter o diretório ESP do SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
+  final directory = prefs.getString('diretorioESP') ?? 'C:\\Industrial';
+  // Remover a barra final se existir para garantir consistência
+  final directoryPath = directory.endsWith('\\') ? directory.substring(0, directory.length - 1) : directory;
   final command = 'ESP0019.exe XX $batismo $grupo $subgrupo';
 
   try {
@@ -706,7 +781,7 @@ Future<String> executaEspecialESP0019(
     final process = await Process.start(
       'cmd.exe',
       ['/c', command],
-      workingDirectory: directory,
+      workingDirectory: directoryPath,
       runInShell: true,
       mode: ProcessStartMode.normal, // ou .detached se quiser ocultar
     );
@@ -737,14 +812,18 @@ Future<String> executaEspecialESP0019(
 }
 
 Future<void> executaEspecialES05072(BuildContext context, int cadcont) async {
-  final directory = 'C:\\Industrial';
+  // Obter o diretório ESP do SharedPreferences
+  final prefs = await SharedPreferences.getInstance();
+  final directory = prefs.getString('diretorioESP') ?? 'C:\\Industrial';
+  // Remover a barra final se existir para garantir consistência
+  final directoryPath = directory.endsWith('\\') ? directory.substring(0, directory.length - 1) : directory;
   final command = 'ES05072.exe $cadcont';
 
   try {
     final process = await Process.start(
       'cmd.exe',
       ['/c', command],
-      workingDirectory: directory,
+      workingDirectory: directoryPath,
       runInShell: true,
       mode: ProcessStartMode.normal, // ou .detached para ocultar
     );

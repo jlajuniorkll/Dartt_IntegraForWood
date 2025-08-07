@@ -1,0 +1,73 @@
+SOLUÇÃO: DEPENDÊNCIAS SSL NÃO FUNCIONAM EM RELEASE/DIST
+=======================================================
+
+PROBLEMA IDENTIFICADO:
+- A aplicação funciona em modo DEBUG quando os arquivos msodbcsql18.lib e odbc32 estão na pasta build/runner
+- Em modo RELEASE ou DIST, a conexão SSL falha porque essas dependências não são incluídas automaticamente
+- O DSN não possui opção para desabilitar SSL no ODBC Driver 18
+
+CAUSAS:
+1. Dependências SSL não são copiadas automaticamente para o build de release
+2. O Flutter não inclui bibliotecas nativas necessárias no pacote final
+3. O ODBC Driver 18 força criptografia por padrão sem opção de desabilitar no DSN
+
+SOLUÇÕES:
+
+1. COPIAR DEPENDÊNCIAS MANUALMENTE PARA DIST:
+   - Localize os arquivos na pasta de debug: build/windows/runner/Debug/
+   - Copie os seguintes arquivos para a pasta dist junto com o executável:
+     * msodbcsql18.dll (não .lib)
+     * Todas as DLLs relacionadas ao ODBC
+     * Bibliotecas do Visual C++ Redistributable
+
+2. MODIFICAR O SCRIPT DE BUILD:
+   - Edite o arquivo package_windows_app.ps1
+   - Adicione comandos para copiar as dependências SSL automaticamente
+   - Exemplo de comando PowerShell:
+     Copy-Item "build/windows/runner/Debug/*.dll" -Destination "dist/DarttIntegraForwood-1.0.0/" -Force
+
+3. USAR ODBC DRIVER 17 (ALTERNATIVA):
+   - Instale o ODBC Driver 17 for SQL Server
+   - Configure o DSN usando o Driver 17 que permite desabilitar SSL
+   - Modifique a string de conexão para usar o Driver 17
+
+4. CONFIGURAR DEPENDÊNCIAS NO PUBSPEC.YAML:
+   - Verifique se todas as dependências nativas estão declaradas
+   - Considere usar uma versão específica da mssql_connection que inclua as DLLs
+
+5. SOLUÇÃO RÁPIDA - COPIAR ARQUIVOS NECESSÁRIOS:
+   Execute os seguintes comandos na pasta do projeto:
+   
+   # Copiar DLLs do ODBC
+   copy "C:\Windows\System32\msodbcsql18.dll" "dist\DarttIntegraForwood-1.0.0\"
+   copy "C:\Windows\System32\msvcr120.dll" "dist\DarttIntegraForwood-1.0.0\"
+   copy "C:\Windows\System32\msvcp120.dll" "dist\DarttIntegraForwood-1.0.0\"
+   
+   # Verificar se o Visual C++ Redistributable está instalado
+   # Se não estiver, instalar: vc_redist.x64.exe
+
+6. CONFIGURAÇÃO ALTERNATIVA DE STRING DE CONEXÃO:
+   Se possível, modifique a aplicação para usar:
+   - TrustServerCertificate=Yes
+   - Encrypt=No
+   - Driver={ODBC Driver 17 for SQL Server} (em vez do 18)
+
+VERIFICAÇÃO:
+1. Teste a aplicação em uma máquina limpa (sem Visual Studio)
+2. Verifique se todas as DLLs estão presentes na pasta dist
+3. Execute o aplicativo e teste a conexão
+4. Se ainda falhar, use o Event Viewer do Windows para ver erros detalhados
+
+OBSERVAÇÕES IMPORTANTES:
+- O problema é comum em aplicações Flutter que usam bibliotecas nativas
+- O modo DEBUG inclui mais dependências que o RELEASE
+- Sempre teste o build final em uma máquina sem ambiente de desenvolvimento
+- Considere criar um instalador que inclua todas as dependências necessárias
+
+ARQUIVOS A VERIFICAR:
+- dist/DarttIntegraForwood-1.0.0/msodbcsql18.dll
+- dist/DarttIntegraForwood-1.0.0/msvcr120.dll
+- dist/DarttIntegraForwood-1.0.0/msvcp120.dll
+- dist/DarttIntegraForwood-1.0.0/mssql_connection_plugin.dll
+
+Se o problema persistir, considere usar uma versão anterior do ODBC Driver ou implementar uma conexão direta via TCP sem SSL.

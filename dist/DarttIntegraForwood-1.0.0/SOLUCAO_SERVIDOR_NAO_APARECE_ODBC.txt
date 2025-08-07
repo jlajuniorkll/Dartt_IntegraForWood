@@ -1,0 +1,68 @@
+=================================================
+SOLUÇÃO PARA SERVIDOR QUE NÃO APARECE NO ODBC
+=================================================
+
+Se você consegue conectar ao servidor SQL Server (NOTEDARTT\ECADPRO2019) usando o SQL Server Management Studio, mas o servidor não aparece na lista ao configurar um DSN no ODBC Driver 17 ou 18, siga estas instruções:
+
+1. CAUSAS POSSÍVEIS
+------------------
+
+- O SQL Server Browser pode estar desativado no servidor
+- Configurações de firewall podem estar bloqueando a descoberta do servidor
+- O protocolo TCP/IP pode estar desativado no SQL Server
+- A instância nomeada pode não estar configurada para ser descoberta automaticamente
+
+2. SOLUÇÕES
+----------
+
+A. Inserir o servidor manualmente:
+
+   1. Ao configurar o DSN no ODBC, em vez de selecionar o servidor na lista:
+      - Digite manualmente o nome do servidor: NOTEDARTT\ECADPRO2019
+      - OU use o endereço IP do servidor seguido da instância: 192.168.x.x\ECADPRO2019
+
+B. Verificar o SQL Server Browser:
+
+   1. No servidor, abra o SQL Server Configuration Manager
+   2. Vá para "Serviços do SQL Server"
+   3. Verifique se o serviço "SQL Server Browser" está em execução
+   4. Se não estiver, inicie o serviço e configure-o para iniciar automaticamente
+
+C. Verificar configurações de firewall:
+
+   1. No servidor, verifique se as portas do SQL Server estão abertas no firewall:
+      - Porta UDP 1434 (SQL Browser)
+      - Porta TCP da instância (geralmente 1433 para a instância padrão)
+
+D. Verificar protocolos do SQL Server:
+
+   1. No servidor, abra o SQL Server Configuration Manager
+   2. Vá para "Configuração de Rede do SQL Server" > "Protocolos para ECADPRO2019"
+   3. Verifique se o protocolo TCP/IP está habilitado
+
+3. SOLUÇÃO RÁPIDA: CONEXÃO DIRETA
+-------------------------------
+
+Se você não conseguir resolver o problema de descoberta do servidor, você ainda pode configurar o DSN digitando manualmente o nome do servidor:
+
+1. Abra o Administrador de Fontes de Dados ODBC (odbcad32.exe)
+2. Vá para a aba "DSN de Sistema" e clique em "Adicionar"
+3. Selecione "ODBC Driver 17 for SQL Server" ou "ODBC Driver 18 for SQL Server"
+4. Na tela de configuração, em vez de clicar em "Procurar servidor", digite diretamente:
+   - Nome: NOTEDARTT\ECADPRO2019
+5. Continue com a configuração normal (autenticação, banco de dados padrão, etc.)
+6. Lembre-se de marcar a opção "Confiar no certificado do servidor" se estiver usando o Driver 18
+
+4. VERIFICAÇÃO
+------------
+
+Para verificar se a solução funcionou:
+
+1. Após configurar o DSN, clique em "Testar Conexão"
+2. Se o teste for bem-sucedido, o problema foi resolvido
+
+5. OBSERVAÇÕES IMPORTANTES
+------------------------
+
+- Se você estiver usando o ODBC Driver 18, lembre-se de configurar a opção "Confiar no certificado do servidor" conforme explicado no arquivo SOLUCAO_ERRO_CERTIFICADO_SSL.txt
+- Se você estiver usando uma string de conexão direta (sem DSN), consulte o arquivo SOLUCAO_CONEXAO_SQLOLEDB.txt para instruções sobre como adicionar o parâmetro TrustServerCertificate

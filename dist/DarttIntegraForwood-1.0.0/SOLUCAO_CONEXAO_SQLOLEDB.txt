@@ -1,0 +1,72 @@
+=================================================
+SOLUÇÃO PARA CONEXÃO SQLOLEDB COM ERRO DE CERTIFICADO
+=================================================
+
+Se você está usando uma string de conexão SQLOLEDB.1 e recebendo erros relacionados a certificados SSL, como:
+
+"A cadeia de certificação foi emitida por uma autoridade que não é de confiança."
+
+Você pode resolver este problema adicionando o parâmetro TrustServerCertificate à sua string de conexão.
+
+1. EXEMPLO DE STRING DE CONEXÃO ORIGINAL
+----------------------------------------
+
+Provider=SQLOLEDB.1;Password=SuaSenha;Persist Security Info=True;User ID=sa;Data Source=SeuServidor\Instancia
+
+
+2. COMO ADICIONAR O PARÂMETRO TRUSTSERVERCERTIFICATE
+--------------------------------------------------
+
+Adicione "TrustServerCertificate=Yes;" à sua string de conexão:
+
+Provider=SQLOLEDB.1;Password=SuaSenha;Persist Security Info=True;User ID=sa;Data Source=SeuServidor\Instancia;TrustServerCertificate=Yes;
+
+
+3. ALTERNATIVAS
+-------------
+
+Se a opção acima não funcionar, você pode tentar:
+
+a) Adicionar "Encrypt=No;" à string de conexão:
+
+Provider=SQLOLEDB.1;Password=SuaSenha;Persist Security Info=True;User ID=sa;Data Source=SeuServidor\Instancia;Encrypt=No;
+
+b) Ou ambos os parâmetros:
+
+Provider=SQLOLEDB.1;Password=SuaSenha;Persist Security Info=True;User ID=sa;Data Source=SeuServidor\Instancia;Encrypt=No;TrustServerCertificate=Yes;
+
+
+4. PARA SUA STRING DE CONEXÃO ESPECÍFICA
+--------------------------------------
+
+Com base na string de conexão que você forneceu:
+
+Provider=SQLOLEDB.1;Password=eCadPro2019;Persist Security Info=True;User ID=sa;Data Source=NOTEDARTT\ECADPRO2019
+
+Você deve usar:
+
+Provider=SQLOLEDB.1;Password=eCadPro2019;Persist Security Info=True;User ID=sa;Data Source=NOTEDARTT\ECADPRO2019;TrustServerCertificate=Yes;
+
+Ou:
+
+Provider=SQLOLEDB.1;Password=eCadPro2019;Persist Security Info=True;User ID=sa;Data Source=NOTEDARTT\ECADPRO2019;Encrypt=No;
+
+
+5. OBSERVAÇÕES IMPORTANTES
+------------------------
+
+- O parâmetro TrustServerCertificate=Yes faz com que o driver ignore a validação do certificado do servidor.
+- Esta configuração é recomendada apenas para ambientes de desenvolvimento ou teste.
+- Para ambientes de produção, considere instalar um certificado válido no servidor SQL Server.
+
+
+6. ONDE APLICAR ESTA ALTERAÇÃO
+----------------------------
+
+Você pode aplicar esta alteração em:
+
+- Configurações do aplicativo onde a string de conexão é definida
+- Arquivos de configuração (como app.config ou web.config)
+- Código-fonte onde a conexão é estabelecida
+
+Para o aplicativo DarttIntegraForwood, você pode modificar a string de conexão na tela de configurações do aplicativo.

@@ -6,10 +6,10 @@ import 'package:dartt_integraforwood/Pages/homescreen/controller/home_screen_con
 import 'package:dartt_integraforwood/Routes/app_routes.dart';
 import 'package:dartt_integraforwood/commom/commom_functions.dart';
 import 'package:dartt_integraforwood/commom/desenha_bordas.dart';
-import 'package:dartt_integraforwood/config/consts.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ignore: must_be_immutable
 class DetailsScreen extends StatelessWidget {
@@ -55,6 +55,70 @@ class DetailsScreen extends StatelessWidget {
           padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
+              // Status da conexão SQL Server
+              Obx(() => Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(12),
+                margin: EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: controller.sqlServerConnected.value 
+                    ? Colors.green.shade100 
+                    : Colors.red.shade100,
+                  border: Border.all(
+                    color: controller.sqlServerConnected.value 
+                      ? Colors.green 
+                      : Colors.red,
+                    width: 1,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          controller.sqlServerConnected.value 
+                            ? Icons.check_circle 
+                            : Icons.error,
+                          color: controller.sqlServerConnected.value 
+                            ? Colors.green 
+                            : Colors.red,
+                          size: 20,
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'SQL Server: ${controller.sqlServerStatus.value}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: controller.sqlServerConnected.value 
+                                ? Colors.green.shade800 
+                                : Colors.red.shade800,
+                            ),
+                          ),
+                        ),
+                        if (!controller.sqlServerConnected.value)
+                          TextButton(
+                            onPressed: () => controller.connectSqlServer(),
+                            child: Text('Tentar Novamente'),
+                          ),
+                      ],
+                    ),
+                    if (controller.sqlServerError.value.isNotEmpty)
+                      Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          controller.sqlServerError.value,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.red.shade700,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              )),
               Center(
                 child: Wrap(
                   spacing: 8.0, // Espaçamento horizontal entre os botões
@@ -67,8 +131,10 @@ class DetailsScreen extends StatelessWidget {
                         controller.cadiretaSuccess.value = false;
                         controller.saveOKCadireta.clear();
                         controller.outliteData.value = null;
+                        final prefs = await SharedPreferences.getInstance();
+                        final diretorio = prefs.getString('diretorioXML') ?? 'T:\\xml';
                         final XFile? file = await openFile(
-                          initialDirectory: diretorioXML,
+                          initialDirectory: diretorio,
                           acceptedTypeGroups: [
                             XTypeGroup(extensions: ['xml']),
                           ],

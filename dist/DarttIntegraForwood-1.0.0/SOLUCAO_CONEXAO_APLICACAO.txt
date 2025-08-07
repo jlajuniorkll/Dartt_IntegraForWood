@@ -1,0 +1,85 @@
+=================================================
+SOLUÇÃO PARA PROBLEMAS DE CONEXÃO DA APLICAÇÃO
+=================================================
+
+Se a aplicação DarttIntegraForwood não está conseguindo se conectar ao banco de dados SQL Server ou ao ODBC configurado, mesmo após seguir as instruções anteriores, este guia fornece soluções específicas para o problema.
+
+1. PROBLEMA DE CERTIFICADO SSL NA APLICAÇÃO
+----------------------------------------
+
+A aplicação DarttIntegraForwood utiliza a biblioteca mssql_connection para se conectar ao SQL Server. Esta biblioteca pode estar enfrentando o mesmo problema de certificado SSL que o ODBC Driver 18.
+
+2. SOLUÇÕES POSSÍVEIS
+------------------
+
+Opção 1: Modificar as configurações da aplicação
+------------------------------------------------
+
+1. Abra a aplicação DarttIntegraForwood
+2. Acesse as configurações de conexão com o SQL Server
+3. Verifique se os dados estão corretos:
+   - Host/IP: NOTEDARTT\ECADPRO2019
+   - Porta: 1433
+   - Banco de dados: Moveis3F1B
+   - Nome de usuário: sa
+   - Senha: eCadPro2019
+
+4. Se os dados estiverem corretos e ainda assim não funcionar, tente:
+   - Usar apenas o nome do servidor sem a instância: NOTEDARTT
+   - Ou usar o endereço IP do servidor em vez do nome
+
+Opção 2: Verificar se o SQL Server está aceitando conexões remotas
+------------------------------------------------------------------
+
+1. No servidor SQL Server, abra o SQL Server Configuration Manager
+2. Vá para "Configuração de Rede do SQL Server" > "Protocolos para ECADPRO2019"
+3. Verifique se o protocolo TCP/IP está habilitado
+4. Clique com o botão direito em TCP/IP e selecione "Propriedades"
+5. Na aba "Endereços IP", verifique se as portas estão configuradas corretamente
+6. Reinicie o serviço do SQL Server após fazer alterações
+
+Opção 3: Verificar firewall e antivírus
+---------------------------------------
+
+1. Verifique se o firewall do Windows está permitindo conexões para o aplicativo DarttIntegraForwood
+2. Verifique se o firewall está permitindo conexões na porta 1433 (SQL Server)
+3. Temporariamente desative o antivírus para testar se ele está bloqueando a conexão
+
+3. SOLUÇÃO PARA DESENVOLVEDORES
+----------------------------
+
+Se você é um desenvolvedor e precisa modificar o código-fonte da aplicação, considere as seguintes alterações:
+
+1. A aplicação usa a biblioteca mssql_connection versão 2.0.1 para conectar ao SQL Server
+2. Esta biblioteca não expõe diretamente a opção TrustServerCertificate
+3. Possíveis soluções no código:
+
+   a) Atualizar a biblioteca mssql_connection para uma versão mais recente que suporte TrustServerCertificate
+   
+   b) Modificar o arquivo lib/db/sqlserver_connection.dart para incluir parâmetros adicionais de conexão:
+   ```dart
+   Future<bool> connect({
+     required String ip,
+     required String port,
+     required String database,
+     required String username,
+     required String password,
+     bool trustServerCertificate = true,  // Adicionar este parâmetro
+   }) async {
+     // Implementação modificada
+   }
+   ```
+
+4. VERIFICAÇÃO
+------------
+
+Para verificar se a aplicação está tentando se conectar corretamente:
+
+1. Verifique os logs da aplicação, se disponíveis
+2. Verifique os logs de erro do SQL Server
+3. Use uma ferramenta como o SQL Server Profiler para monitorar tentativas de conexão
+
+5. CONTATO PARA SUPORTE
+---------------------
+
+Se você continuar enfrentando problemas após tentar todas as soluções acima, entre em contato com o desenvolvedor da aplicação para obter suporte adicional.

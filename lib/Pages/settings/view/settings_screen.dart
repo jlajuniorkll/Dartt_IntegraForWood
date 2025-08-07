@@ -83,6 +83,10 @@ class SettingsScreen extends StatelessWidget {
                 controller.diretorioXMLController.value,
                 'Diretório XML',
               ),
+              _buildTextField(
+                controller.diretorioESPController.value,
+                'Diretório ESP',
+              ),
               SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () {
