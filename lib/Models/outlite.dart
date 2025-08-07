@@ -8,6 +8,7 @@ class Outlite {
   String rif = "";
   String fileName = "";
   List<ItemBox>? itembox;
+  String codpai = "";
   Outlite({
     this.data,
     this.numero,
@@ -15,6 +16,7 @@ class Outlite {
     required this.rif,
     required this.fileName,
     this.itembox,
+    this.codpai = "",
   });
 
   Map<String, dynamic> toMap() {
@@ -25,6 +27,7 @@ class Outlite {
       'rif': rif,
       'fileName': fileName,
       'itembox': itembox?.map((x) => x.toMap()).toList(),
+      'codpai': codpai,
     };
   }
 
@@ -36,6 +39,7 @@ class Outlite {
           map['dataDesenho'] != null ? map['dataDesenho'] as String : null,
       rif: map['rif'] as String,
       fileName: map['fileName'] as String,
+      codpai: map['codpai'] != null ? map['codpai'] as String : "",
       itembox:
           map['itembox'] != null
               ? List<ItemBox>.from(

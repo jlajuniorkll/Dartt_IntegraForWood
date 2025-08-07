@@ -76,13 +76,27 @@ class HomeScreenRepository {
     //return jsonEncode(lista);
   }
 
+  Future<String> deleteCadireta() async {
+    final connection = PostgresConnection().connection;
+
+    if (connection == null) {
+      throw Exception('Erro: Conexão não iniciada');
+    }
+    final query = Sql.named('DELETE FROM cadireta');
+    try {
+      await connection.execute(query);
+      return "";
+    } catch (e) {
+      return 'Erro ao deletar cadireta: $e';
+    }
+  }
+
   Future<String> saveCadireta(Cadireta cadireta, int contador, String s) async {
     final connection = PostgresConnection().connection;
 
     if (connection == null) {
       throw Exception('Erro: Conexão não iniciada');
     }
-    final deleteQuery = Sql.named('DELETE FROM cadireta');
     final query = Sql.named(
       'INSERT INTO cadireta (CADCONT, CADPAI, CADFILHO, CADSTATUS, CADSUSCAD, CADPAINOME, CADFILNOME, CADPAIUM, CADFILUM, CADUSO, CADCOMP, CADLARG, CADESPE, CADPESO, CADFASE, CADGRAV, CADHORA, CADIMPDT, CADIMPHR, CADUSUIMP, CADLOCAL, CADGRPAI, CADSGPAI, CADGRFIL, CADSGFIL, CADPRIEMB, CADPROJ, CADARQUIVO, CADCOBR, CADLABR, CADESBR, CADCLASS, CADPLCOR, CADUSAMED, CADBORINT, CADBORSUP, CADBORINF, CADBORESQ, CADBORDIR, CADPAIAREA, CADTIPFIL, CADPEMBPR, CADPEMBPP, CADINDTER, CADDIMPER, CADAPP, CADARQFIL, CADPESBRU, CADPAIFAN, CADMARCA, CADUSUMA, CADMCONTP, CADMPAI, CADIDLOTE, CADREAP, CADLIGFAN) '
       'VALUES (@CADCONT, @CADPAI, @CADFILHO, @CADSTATUS, @CADSUSCAD, @CADPAINOME, @CADFILNOME, @CADPAIUM, @CADFILUM, @CADUSO, @CADCOMP, @CADLARG, @CADESPE, @CADPESO, @CADFASE, @CADGRAV, @CADHORA, @CADIMPDT, @CADIMPHR, @CADUSUIMP, @CADLOCAL, @CADGRPAI, @CADSGPAI, @CADGRFIL, @CADSGFIL, @CADPRIEMB, @CADPROJ, @CADARQUIVO, @CADCOBR, @CADLABR, @CADESBR, @CADCLASS, @CADPLCOR, @CADUSAMED, @CADBORINT, @CADBORSUP, @CADBORINF, @CADBORESQ, @CADBORDIR, @CADPAIAREA, @CADTIPFIL, @CADPEMBPR, @CADPEMBPP, @CADINDTER, @CADDIMPER, @CADAPP, @CADARQFIL, @CADPESBRU, @CADPAIFAN, @CADMARCA, @CADUSUMA, @CADMCONTP, @CADMPAI, @CADIDLOTE, @CADREAP, @CADLIGFAN)',
@@ -146,11 +160,25 @@ class HomeScreenRepository {
       'CADLIGFAN': '',
     };
     try {
-      await connection.execute(deleteQuery);
       await connection.execute(query, parameters: parameters);
       return "";
     } catch (e) {
       return 'Erro linha $contador da $s: $e';
+    }
+  }
+
+  Future<String> deleteCadiredi() async {
+    final connection = PostgresConnection().connection;
+
+    if (connection == null) {
+      throw Exception('Erro: Conexão não iniciada');
+    }
+    final query = Sql.named('DELETE FROM cadiredi');
+    try {
+      await connection.execute(query);
+      return "";
+    } catch (e) {
+      return 'Erro ao deletar cadiredi: $e';
     }
   }
 
@@ -160,7 +188,6 @@ class HomeScreenRepository {
     if (connection == null) {
       throw Exception('Erro: Conexão não iniciada');
     }
-    final deleteQuery = Sql.named('DELETE FROM cadiredi');
     final query = Sql.named(
       'INSERT INTO cadiredi (caddcont, caddpai, caddfil, caddseq, caddcom, caddlar, caddesp, caddcob, caddlab, caddesb, caddcor, caddbint, caddbsup, caddbinf, caddbesq, caddbdir, caddpdes, caddper, caddqtd) '
       'VALUES (@caddcont, @caddpai, @caddfil, @caddseq, @caddcom, @caddlar, @caddesp, @caddcob, @caddlab, @caddesb, @caddcor, @caddbint, @caddbsup, @caddbinf, @caddbesq, @caddbdir, @caddpdes, @caddper, @caddqtd)',
@@ -187,7 +214,6 @@ class HomeScreenRepository {
       'caddqtd': cadiredi.caddqtd,
     };
     try {
-      await connection.execute(deleteQuery);
       await connection.execute(query, parameters: parameters);
       return "";
     } catch (e) {

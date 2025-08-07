@@ -29,7 +29,7 @@ class HomeScreenController extends GetxController {
   RxBool saveCadiretaLoading = false.obs;
   RxList saveOKCadireta = [].obs;
   RxBool cadiretaSuccess = false.obs;
-  
+
   // Status da conexão SQL Server
   RxBool sqlServerConnected = false.obs;
   RxString sqlServerStatus = 'Verificando conexão...'.obs;
@@ -40,7 +40,7 @@ class HomeScreenController extends GetxController {
     super.onInit();
     _initializeConnections();
   }
-  
+
   Future<void> _initializeConnections() async {
     await connectDatabase();
     await connectSqlServer();
@@ -66,7 +66,7 @@ class HomeScreenController extends GetxController {
     final database = prefs.getString('databaseFW') ?? '3F1B';
     final username = prefs.getString('userNameFW') ?? 'postgres';
     final password = prefs.getString('passwordFW') ?? 'postgres';
-    
+
     final conected = await PostgresConnection().connect(
       host: host,
       port: port,
@@ -81,7 +81,7 @@ class HomeScreenController extends GetxController {
     try {
       sqlServerStatus.value = 'Conectando ao SQL Server...';
       sqlServerError.value = '';
-      
+
       final prefs = await SharedPreferences.getInstance();
       final ip = prefs.getString('hostSQL') ?? 'NOTEDARTT\\ECADPRO2019';
       // Tentar obter porta como int primeiro (compatibilidade), depois como string
@@ -95,20 +95,21 @@ class HomeScreenController extends GetxController {
       final database = prefs.getString('databaseSQL') ?? 'Moveis3F1B';
       final username = prefs.getString('userNameSQL') ?? 'sa';
       final password = prefs.getString('passwordSQL') ?? 'eCadPro2019';
-      
+
       sqlServerStatus.value = 'Tentando conectar em $ip...';
-      
-      final conected = await SqlServerConnection.getInstance().connectWithProgress(
-        ip: ip,
-        port: port,
-        database: database,
-        username: username,
-        password: password,
-        onProgress: (attempt, total, driver) {
-          sqlServerStatus.value = 'Tentativa $attempt de $total: $driver';
-        },
-      );
-      
+
+      final conected = await SqlServerConnection.getInstance()
+          .connectWithProgress(
+            ip: ip,
+            port: port,
+            database: database,
+            username: username,
+            password: password,
+            onProgress: (attempt, total, driver) {
+              sqlServerStatus.value = 'Tentativa $attempt de $total: $driver';
+            },
+          );
+
       if (conected) {
         sqlServerConnected.value = true;
         sqlServerStatus.value = 'Conectado ao SQL Server ($ip)';
@@ -116,9 +117,10 @@ class HomeScreenController extends GetxController {
       } else {
         sqlServerConnected.value = false;
         sqlServerStatus.value = 'Falha na conexão';
-        sqlServerError.value = 'Não foi possível conectar ao servidor $ip. Verifique:\n• Se o SQL Server está rodando\n• Se o serviço SQL Server Browser está ativo\n• Configurações de firewall\n• Nome da instância e credenciais';
+        sqlServerError.value =
+            'Não foi possível conectar ao servidor $ip. Verifique:\n• Se o SQL Server está rodando\n• Se o serviço SQL Server Browser está ativo\n• Configurações de firewall\n• Nome da instância e credenciais';
       }
-      
+
       setDatabasePro(conected);
     } catch (e) {
       sqlServerConnected.value = false;
@@ -164,12 +166,23 @@ class HomeScreenController extends GetxController {
     statusMessage.value = 'Extraindo dados do XML...';
     final testas = parsedXml.findAllElements('TESTA');
     final righes = parsedXml.findAllElements('RIGHE').toList();
+    String codMestre = '';
 
     if (testas.isNotEmpty && righes.isNotEmpty) {
       final testa = testas.first;
       final righeElement = righes.first;
 
       final List<ItemBox> itemBoxList = [];
+      codMestre =
+          parsedXml.findAllElements('CODPAIPED').isNotEmpty
+              ? parsedXml.findAllElements('CODPAIPED').first.innerText
+              : 'CRIAR CÓDIGO';
+      /*codMestre =
+          parsedXml
+              .findAllElements('CODPAIPED')
+              // ignore: deprecated_member_use
+              .map((node) => node.text)
+              .first;*/
 
       for (final riga in righeElement.children.whereType<XmlElement>()) {
         final distintatElement = riga.findElements('DISTINTAT');
@@ -238,9 +251,10 @@ class HomeScreenController extends GetxController {
         rif:
             testa.findElements('RIF').isNotEmpty
                 ? testa.findElements('RIF').first.innerText
-                : '',
+                : 'SEM DESCRICAO',
         fileName: fileName,
         itembox: itemBoxList,
+        codpai: codMestre,
       );
 
       outliteData.value = outlite;
@@ -363,13 +377,15 @@ class HomeScreenController extends GetxController {
   }
 
   Future<void> saveCadireta(Outlite outlite) async {
+    homeScreenRepository.deleteCadireta();
+    homeScreenRepository.deleteCadiredi();
     int contador = 0; // Defina o valor de cadcont conforme necessário
     int contadorItemPeca = 0; // Defina o valor de cadcont conforme necessário
     int contadorItemCompra = 0; // Defina o valor de cadcont conforme necessário
 
     // Obter o valor de codbatismomodulo do SharedPreferences
     final prefs = await SharedPreferences.getInstance();
-    final codbatismomodulo = prefs.getString('codbatismomodulo') ?? '4.1';
+    final codbatismocorte = prefs.getString('codbatismocorte') ?? '52';
 
     // Salva os dados do pai
     for (var oi in outlite.itembox!) {
@@ -377,18 +393,18 @@ class HomeScreenController extends GetxController {
       // var codpai = oi.codigo ?? '';
       var despai = oi.des ?? '';
       var codpai = await executaEspecialESP0019(
-        codbatismomodulo,
+        codbatismocorte,
         500,
         8,
         contador,
       );
       Cadireta cadireta = Cadireta(
         cadcont: contador,
-        cadpai: '5.8.9999',
+        cadpai: outlite.codpai,
         cadfilho: codpai,
-        cadstatus: 'C',
+        cadstatus: 'N',
         cadsuscad: 'IMP3CAD',
-        cadpainome: 'ITEMBOX_TESTE',
+        cadpainome: outlite.rif,
         cadfilnome: despai,
         cadpaium: 'UN',
         cadfilum: 'UN',
@@ -426,7 +442,7 @@ class HomeScreenController extends GetxController {
         cadtpfil: '',
         cadpembpr: 0,
         cadpembpp: 0,
-        cadindter: 'N',
+        cadindter: 'S',
         caddimper: 0.00,
         cadapp: 'PDM',
       );
@@ -447,8 +463,9 @@ class HomeScreenController extends GetxController {
             double.parse(itemPeca.espessura!) >= 0) {
           // Obter o valor de codbatismomodulo do SharedPreferences
           final prefs = await SharedPreferences.getInstance();
-          final codbatismomodulo = prefs.getString('codbatismomodulo') ?? '4.1';
-          
+          final codbatismomodulo =
+              prefs.getString('codbatismomodulo') ?? '4.1.';
+
           codpeca = await executaEspecialESP0019(
             codbatismomodulo,
             500,
@@ -461,7 +478,7 @@ class HomeScreenController extends GetxController {
           cadcont: contador,
           cadpai: codpai,
           cadfilho: codpeca,
-          cadstatus: 'C',
+          cadstatus: 'N',
           cadsuscad: 'IMP3CAD',
           cadpainome: despai,
           cadfilnome: itemPeca.idpeca!,
@@ -486,33 +503,17 @@ class HomeScreenController extends GetxController {
           cadoriemb: 0,
           cadproj: 'IMP3CAD',
           cadarquivo: '',
-          cadcobr:
-              double.parse(itemPeca.comprimento!) > 0
-                  ? double.parse(itemPeca.comprimento!)
-                  : 0.00,
-          cadlabr:
-              double.parse(itemPeca.largura!) > 0
-                  ? double.parse(itemPeca.largura!)
-                  : 0.00,
-          cadesbr:
-              double.parse(itemPeca.espessura!) > 0
-                  ? double.parse(itemPeca.espessura!)
-                  : 0.00,
+          cadcobr: 0.00,
+          cadlabr: 0.00,
+          cadesbr: 0.00,
           cadclass: '',
-          cadplcor:
-              itemPeca.largura != null && double.parse(itemPeca.largura!) > 0
-                  ? 'S'
-                  : 'N',
+          cadplcor: 'N',
           cadusamed: 'N',
           cadborint: 'N',
-          cadbordsup:
-              itemPeca.fitatra != null && itemPeca.fitatra != 'N' ? 'S' : 'N',
-          cadbordinf:
-              itemPeca.fitafre != null && itemPeca.fitafre != 'N' ? 'S' : 'N',
-          cadboresq:
-              itemPeca.fitaesq != null && itemPeca.fitaesq != 'N' ? 'S' : 'N',
-          cadbordir:
-              itemPeca.fitadir != null && itemPeca.fitadir != 'N' ? 'S' : 'N',
+          cadbordsup: 'N',
+          cadbordinf: 'N',
+          cadboresq: 'N',
+          cadbordir: 'N',
           cadpaiarea: 0.0,
           cadtpfil: '',
           cadpembpr: 0,
@@ -573,7 +574,7 @@ class HomeScreenController extends GetxController {
                 cadcont: contadorItemPeca,
                 cadpai: codpeca,
                 cadfilho: nome,
-                cadstatus: 'C',
+                cadstatus: 'N',
                 cadsuscad: 'IMP3CAD',
                 cadpainome: itemPeca.idpeca!,
                 cadfilnome: des,
@@ -599,17 +600,18 @@ class HomeScreenController extends GetxController {
                 cadproj: 'IMP3CAD',
                 cadarquivo: '',
                 cadcobr:
-                    double.parse(itemPeca.comprimento!) > 0
+                    fase == '20'
+                        ? getCompBord(itemPeca)
+                        : double.parse(itemPeca.comprimento!) > 0
                         ? double.parse(itemPeca.comprimento!)
                         : 0.00,
                 cadlabr:
-                    double.parse(itemPeca.largura!) > 0
+                    fase == '20'
+                        ? getLarBord(itemPeca)
+                        : double.parse(itemPeca.largura!) > 0
                         ? double.parse(itemPeca.largura!)
                         : 0.00,
-                cadesbr:
-                    double.parse(itemPeca.espessura!) > 0
-                        ? double.parse(itemPeca.espessura!)
-                        : 0.00,
+                cadesbr: 0.00,
                 cadclass: '',
                 cadplcor:
                     itemPeca.largura != null &&
@@ -638,7 +640,7 @@ class HomeScreenController extends GetxController {
                 cadtpfil: '',
                 cadpembpr: 0,
                 cadpembpp: 0,
-                cadindter: 'S',
+                cadindter: 'N',
                 caddimper: 0.00,
                 cadapp: 'PDM',
               );
@@ -756,6 +758,36 @@ class HomeScreenController extends GetxController {
   }
 }
 
+getLarBord(ItemPecas itemPeca) {
+  var contafita = 0;
+  if (itemPeca.fitaesq != null && itemPeca.fitaesq != 'N') {
+    contafita++;
+  }
+  if (itemPeca.fitadir != null && itemPeca.fitadir != 'N') {
+    contafita++;
+  }
+  if (contafita > 0) {
+    return double.parse(itemPeca.largura!) * (contafita);
+  } else {
+    return 0.00;
+  }
+}
+
+getCompBord(ItemPecas itemPeca) {
+  var contafita = 0;
+  if (itemPeca.fitafre != null && itemPeca.fitafre != 'N') {
+    contafita++;
+  }
+  if (itemPeca.fitatra != null && itemPeca.fitatra != 'N') {
+    contafita++;
+  }
+  if (contafita > 0) {
+    return double.parse(itemPeca.comprimento!) * (contafita);
+  } else {
+    return 0.00;
+  }
+}
+
 getDateFormated(DateTime dateTime) {
   final formatter = DateFormat('yyyy-MM-dd');
   String formattedTime = formatter.format(dateTime);
@@ -773,7 +805,10 @@ Future<String> executaEspecialESP0019(
   final prefs = await SharedPreferences.getInstance();
   final directory = prefs.getString('diretorioESP') ?? 'C:\\Industrial';
   // Remover a barra final se existir para garantir consistência
-  final directoryPath = directory.endsWith('\\') ? directory.substring(0, directory.length - 1) : directory;
+  final directoryPath =
+      directory.endsWith('\\')
+          ? directory.substring(0, directory.length - 1)
+          : directory;
   final command = 'ESP0019.exe XX $batismo $grupo $subgrupo';
 
   try {
@@ -816,7 +851,10 @@ Future<void> executaEspecialES05072(BuildContext context, int cadcont) async {
   final prefs = await SharedPreferences.getInstance();
   final directory = prefs.getString('diretorioESP') ?? 'C:\\Industrial';
   // Remover a barra final se existir para garantir consistência
-  final directoryPath = directory.endsWith('\\') ? directory.substring(0, directory.length - 1) : directory;
+  final directoryPath =
+      directory.endsWith('\\')
+          ? directory.substring(0, directory.length - 1)
+          : directory;
   final command = 'ES05072.exe $cadcont';
 
   try {
