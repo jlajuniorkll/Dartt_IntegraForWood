@@ -217,9 +217,11 @@ class DetailsScreen extends StatelessWidget {
                       ),
                     ),
                     ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: Icon(Icons.history),
-                      label: Text('Enviados'),
+                      onPressed: () async {
+                        await controller.sendJob();
+                      },
+                      icon: Icon(Icons.construction),
+                      label: Text('Enviar Job'),
                     ),
                     GetBuilder<HomeScreenController>(
                       builder: (ctl) {

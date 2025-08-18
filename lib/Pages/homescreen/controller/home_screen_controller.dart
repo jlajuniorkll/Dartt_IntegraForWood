@@ -718,6 +718,10 @@ class HomeScreenController extends GetxController {
 
   void sync3Cad() {}
 
+  Future<void> sendJob() async {
+    // await homeScreenRepository.sendJob();
+  }
+
   Future<void> generateCompradosReport() async {
     await pdfService.printCompradosReport(outliteData.value!);
   }

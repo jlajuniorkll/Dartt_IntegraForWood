@@ -255,7 +255,280 @@ class HomeScreenRepository {
 
     // 1. Consulta principal da distinta
     String query =
-        "SELECT CODFIG, QTA, FASE FROM DISTINTA WHERE cod = '$codDistinta'";
+        "SELECT CODFIG, QTA, FASE, VALIDO FROM DISTINTA WHERE cod = '$codDistinta'";
+    String rawResult = await mssqlConnection.getData(query);
+
+    List<Map<String, dynamic>> jsonList = List<Map<String, dynamic>>.from(
+      json.decode(rawResult),
+    );
+
+    // 2. Monta mapa de variáveis vindas da string
+    Map<String, String> valores = {};
+    if (variaveis != null && variaveis.isNotEmpty) {
+      for (var par in variaveis.split(';')) {
+        if (par.contains('=')) {
+          var partes = par.split('=');
+          valores[partes[0].toUpperCase()] = partes[1];
+        }
+      }
+    }
+
+    // 3. Adiciona variáveis de dimensão
+    valores['L'] = comp.toString();
+    valores['A'] = larg.toString();
+    valores['P'] = alt.toString();
+
+    List<Map<String, dynamic>> processados = [];
+    Set<String> codigosUnicos = {};
+    Set<String> fasesCodigosParaBuscar = {};
+
+    for (var item in jsonList) {
+      final codfig =
+          substituirVariaveis(
+            (item['CODFIG'] ?? '').toString(),
+            valores,
+          ).trim().toUpperCase();
+      String qtaRaw =
+          (item['QTA'] ?? '').toString().replaceAll('\u0010', '').trim();
+      String qtaSubstituida = substituirVariaveis(qtaRaw, valores);
+      String validoRaw = (item['VALIDO'] ?? '').toString();
+
+      // --- Validação do campo VALIDO ---
+      if (validoRaw.trim().isNotEmpty) {
+        bool passou = _avaliarValido(validoRaw, valores);
+        if (!passou) continue; // ignora item se não passar na validação
+      }
+
+      double? valorFinal;
+      try {
+        Parser p = Parser();
+        Expression exp = p.parse(qtaSubstituida);
+        ContextModel cm = ContextModel();
+        valorFinal = exp.evaluate(EvaluationType.REAL, cm);
+      } catch (_) {
+        valorFinal = double.tryParse(qtaSubstituida.replaceAll(',', '.'));
+      }
+
+      if (valorFinal != null && codfig.isNotEmpty) {
+        final fase = (item['FASE'] ?? '').toString().trim();
+        if (fase.isEmpty) {
+          fasesCodigosParaBuscar.add(codfig);
+        }
+
+        codigosUnicos.add(codfig);
+        processados.add({
+          'CODFIG': codfig,
+          'QTA': valorFinal.toStringAsFixed(4),
+          'FASE': fase,
+        });
+      }
+    }
+
+    // 4. Busca descrição dos CODFIG
+    Map<String, String> mapaDescricao = {};
+    if (codigosUnicos.isNotEmpty) {
+      String codigosStr = codigosUnicos.map((c) => "'$c'").join(',');
+      String queryDesc =
+          "SELECT cod, des FROM articoli WHERE UPPER(LTRIM(RTRIM(cod))) IN ($codigosStr)";
+      String rawDescResult = await mssqlConnection.getData(queryDesc);
+
+      List<Map<String, dynamic>> descList = List<Map<String, dynamic>>.from(
+        json.decode(rawDescResult),
+      );
+
+      for (var d in descList) {
+        String key = (d['cod'] ?? '').toString().trim().toUpperCase();
+        String desc = (d['des'] ?? '').toString();
+        mapaDescricao[key] = desc;
+      }
+    }
+
+    // 5. Busca descrição das fases faltantes
+    Map<String, String> mapaFaseDescricao = {};
+    if (fasesCodigosParaBuscar.isNotEmpty) {
+      for (String cod in fasesCodigosParaBuscar) {
+        String queryFase = "SELECT des FROM fasi WHERE cod = '$cod'";
+        String rawFaseResult = await mssqlConnection.getData(queryFase);
+        try {
+          List<dynamic> faseList = json.decode(rawFaseResult);
+          if (faseList.isNotEmpty) {
+            String descricaoFase = faseList.first['des'] ?? '';
+            mapaFaseDescricao[cod] = descricaoFase;
+          }
+        } catch (_) {
+          mapaFaseDescricao[cod] = '';
+        }
+      }
+    }
+
+    // 6. Adiciona descrições
+    for (var item in processados) {
+      final cod = item['CODFIG'];
+      if ((item['FASE'] ?? '').isEmpty) {
+        item['DESCRICAO'] = mapaFaseDescricao[cod] ?? '';
+      } else {
+        item['DESCRICAO'] = mapaDescricao[cod] ?? '';
+      }
+    }
+
+    return jsonEncode(processados);
+  }
+
+  // Função para substituir placeholders <VAR>
+  String substituirVariaveis(String input, Map<String, String> valores) {
+    if (input.isEmpty) return '';
+    RegExp regex = RegExp(r"<([^<>]+)>");
+    return input.replaceAllMapped(regex, (match) {
+      String chave = match.group(1)?.toUpperCase() ?? '';
+      return valores[chave] ?? '';
+    });
+  }
+
+  /// Avalia a expressão do campo VALIDO (com suporte a: !!, =, !=, >, <, >=, <=, & (AND), | (OR))
+  bool _avaliarValido(String validoRaw, Map<String, String> valores) {
+    // substitui placeholders <VAR>
+    String expr = substituirVariaveis(validoRaw, valores).trim();
+
+    if (expr.isEmpty) return true;
+
+    // OR principal (suporta '|' ou '||')
+    List<String> orParts = expr.split(RegExp(r'\s*\|\|\s*|\s*\|\s*'));
+    for (var orPart in orParts) {
+      // AND dentro do OR (suporta '&' ou '&&')
+      List<String> andParts = orPart.split(RegExp(r'\s*&&\s*|\s*\&\s*'));
+
+      bool andResult = true;
+      for (var rawClause in andParts) {
+        String clause = rawClause.trim();
+        if (clause.isEmpty) {
+          andResult = false;
+          break;
+        }
+
+        bool clauseResult = false;
+
+        // 1) operador "!!" (não vazio / não zero)
+        if (clause.endsWith('!!')) {
+          String token = clause.substring(0, clause.length - 2).trim();
+          if (token.isEmpty) {
+            clauseResult = false;
+          } else {
+            double? n = _parseDouble(token);
+            if (n != null) {
+              clauseResult = n != 0;
+            } else {
+              clauseResult = token.isNotEmpty;
+            }
+          }
+        } else {
+          // 2) Comparações: >=, <=, !=, =, >, <
+          RegExp compRe = RegExp(r'^(.+?)(>=|<=|!=|==|=|>|<)(.+)$');
+          var m = compRe.firstMatch(clause);
+          if (m != null) {
+            String left = m.group(1)!.trim();
+            String op = m.group(2)!.trim();
+            String right = m.group(3)!.trim();
+
+            // remove aspas se houver
+            String stripQuotes(String s) {
+              if ((s.startsWith('"') && s.endsWith('"')) ||
+                  (s.startsWith("'") && s.endsWith("'"))) {
+                return s.substring(1, s.length - 1);
+              }
+              return s;
+            }
+
+            left = stripQuotes(left);
+            right = stripQuotes(right);
+
+            double? ln = _parseDouble(left);
+            double? rn = _parseDouble(right);
+
+            if (ln != null && rn != null) {
+              switch (op) {
+                case '>=':
+                  clauseResult = ln >= rn;
+                  break;
+                case '<=':
+                  clauseResult = ln <= rn;
+                  break;
+                case '>':
+                  clauseResult = ln > rn;
+                  break;
+                case '<':
+                  clauseResult = ln < rn;
+                  break;
+                case '!=':
+                  clauseResult = ln != rn;
+                  break;
+                case '=':
+                case '==':
+                  clauseResult = ln == rn;
+                  break;
+                default:
+                  clauseResult = false;
+              }
+            } else {
+              // comparação textual (case-insensitive)
+              String lU = left.toUpperCase();
+              String rU = right.toUpperCase();
+              if (op == '=' || op == '==') {
+                clauseResult = lU == rU;
+              } else if (op == '!=') {
+                clauseResult = lU != rU;
+              } else {
+                // comparar lexicograficamente para >, <, >=, <=
+                int cmp = lU.compareTo(rU);
+                if (op == '>') clauseResult = cmp > 0;
+                if (op == '<') clauseResult = cmp < 0;
+                if (op == '>=') clauseResult = cmp >= 0;
+                if (op == '<=') clauseResult = cmp <= 0;
+              }
+            }
+          } else {
+            // 3) cláusula simples (ex.: "1" ou "ABC") -> true se número diferente de zero ou string não vazia
+            double? n = _parseDouble(clause);
+            if (n != null) {
+              clauseResult = n != 0;
+            } else {
+              clauseResult = clause.isNotEmpty;
+            }
+          }
+        }
+
+        if (!clauseResult) {
+          andResult = false;
+          break;
+        }
+      }
+
+      if (andResult)
+        return true; // se qualquer OR for verdadeiro -> expressão verdadeira
+    }
+
+    return false;
+  }
+
+  /// tenta converter string para double (suporta vírgula decimal)
+  double? _parseDouble(String s) {
+    String t = s.replaceAll(',', '.').trim();
+    if (t.isEmpty) return null;
+    return double.tryParse(t);
+  }
+}
+
+/*  Future<String> getDistinta(
+    String codDistinta,
+    String? variaveis,
+    double comp,
+    double larg,
+    double alt,
+  ) async {
+    final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
+
+    // 1. Consulta principal da distinta
+    String query =
+        "SELECT CODFIG, QTA, FASE, VALIDO FROM DISTINTA WHERE cod = '$codDistinta'";
     String rawResult = await mssqlConnection.getData(query);
 
     List<Map<String, dynamic>> jsonList = List<Map<String, dynamic>>.from(
@@ -388,5 +661,4 @@ class HomeScreenRepository {
       }
     } catch (_) {}
     return '';
-  }
-}
+  }*/
