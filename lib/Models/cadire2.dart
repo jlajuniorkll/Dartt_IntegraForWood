@@ -7,13 +7,59 @@ class Cadire2 {
   int cadinfseq;
   String cadinfdes;
   String cadinfinf;
+  String? nomePRG1; // Adicionar campos para PRG1 e PRG2
+  String? nomePRG2;
+  int? cadfase;
+  String? cadmatricula;
+  double? cadespessura;
+  double? cadcomprimento;
+  double? cadlargura;
+  
   Cadire2({
     required this.cadinfcont,
     required this.cadinfprod,
     required this.cadinfseq,
     required this.cadinfdes,
     required this.cadinfinf,
+    this.nomePRG1,
+    this.nomePRG2,
+    this.cadfase,
+    this.cadmatricula,
+    this.cadespessura,
+    this.cadcomprimento,
+    this.cadlargura,
   });
+
+  // Adicionar método copyWith
+  Cadire2 copyWith({
+    int? cadinfcont,
+    String? cadinfprod,
+    int? cadinfseq,
+    String? cadinfdes,
+    String? cadinfinf,
+    String? nomePRG1,
+    String? nomePRG2,
+    int? cadfase,
+    String? cadmatricula,
+    double? cadespessura,
+    double? cadcomprimento,
+    double? cadlargura,
+  }) {
+    return Cadire2(
+      cadinfcont: cadinfcont ?? this.cadinfcont,
+      cadinfprod: cadinfprod ?? this.cadinfprod,
+      cadinfseq: cadinfseq ?? this.cadinfseq,
+      cadinfdes: cadinfdes ?? this.cadinfdes,
+      cadinfinf: cadinfinf ?? this.cadinfinf,
+      nomePRG1: nomePRG1 ?? this.nomePRG1,
+      nomePRG2: nomePRG2 ?? this.nomePRG2,
+      cadfase: cadfase ?? this.cadfase,
+      cadmatricula: cadmatricula ?? this.cadmatricula,
+      cadespessura: cadespessura ?? this.cadespessura,
+      cadcomprimento: cadcomprimento ?? this.cadcomprimento,
+      cadlargura: cadlargura ?? this.cadlargura,
+    );
+  }
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -22,6 +68,13 @@ class Cadire2 {
       'cadinfseq': cadinfseq,
       'cadinfdes': cadinfdes,
       'cadinfinf': cadinfinf,
+      'nomePRG1': nomePRG1,
+      'nomePRG2': nomePRG2,
+      'cadfase': cadfase,
+      'cadmatricula': cadmatricula,
+      'cadespessura': cadespessura,
+      'cadcomprimento': cadcomprimento,
+      'cadlargura': cadlargura,
     };
   }
 
@@ -32,6 +85,13 @@ class Cadire2 {
       cadinfseq: map['cadinfseq'] as int,
       cadinfdes: map['cadinfdes'] as String,
       cadinfinf: map['cadinfinf'] as String,
+      nomePRG1: map['nomePRG1'] as String?,
+      nomePRG2: map['nomePRG2'] as String?,
+      cadfase: map['cadfase'] as int?,
+      cadmatricula: map['cadmatricula'] as String?,
+      cadespessura: map['cadespessura'] as double?,
+      cadcomprimento: map['cadcomprimento'] as double?,
+      cadlargura: map['cadlargura'] as double?,
     );
   }
 

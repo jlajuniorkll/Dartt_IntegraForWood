@@ -39,6 +39,15 @@ class DetailsScreen extends StatelessWidget {
                   ),
                   PopupMenuItem(
                     child: ListTile(
+                      leading: Icon(Icons.history),
+                      title: Text('XMLs Importados'),
+                      onTap: () {
+                        Get.toNamed(PageRoutes.importedXmls);
+                      },
+                    ),
+                  ),
+                  PopupMenuItem(
+                    child: ListTile(
                       leading: Icon(Icons.settings),
                       title: Text('Configurações'),
                       onTap: () {
@@ -156,6 +165,13 @@ class DetailsScreen extends StatelessWidget {
                       icon: Icon(Icons.file_open),
                       label: Text('Selecionar arquivo XML'),
                     ),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        Get.toNamed(PageRoutes.importedXmls);
+                      },
+                      icon: Icon(Icons.history),
+                      label: Text('Verificar XMLs'),
+                    ),
                     Obx(
                       () => ElevatedButton.icon(
                         onPressed:
@@ -216,13 +232,13 @@ class DetailsScreen extends StatelessWidget {
                         label: Text('Imprimir'),
                       ),
                     ),
-                    ElevatedButton.icon(
+                    /*ElevatedButton.icon(
                       onPressed: () async {
-                        await controller.sendJob();
+                        // await controller.sendJob();
                       },
                       icon: Icon(Icons.construction),
                       label: Text('Enviar Job'),
-                    ),
+                    ),*/
                     GetBuilder<HomeScreenController>(
                       builder: (ctl) {
                         if (ctl.databaseOn) {
@@ -445,7 +461,7 @@ class DetailsScreen extends StatelessWidget {
                                       children: <TableRow>[
                                         TableRow(
                                           decoration: BoxDecoration(
-                                            color: Colors.grey[70],
+                                            color: Colors.grey[200],
                                           ),
                                           children: <Widget>[
                                             Padding(
@@ -497,7 +513,6 @@ class DetailsScreen extends StatelessWidget {
                                         ),
                                       ],
                                     ),
-
                                     /*Text(
                                       'Cod: ${itemPrice.codigo}, ${itemPrice.qtd}',
                                     ),*/
@@ -580,6 +595,7 @@ class DetailsScreen extends StatelessWidget {
                                             3: IntrinsicColumnWidth(),
                                             4: IntrinsicColumnWidth(),
                                             5: IntrinsicColumnWidth(),
+                                            6: IntrinsicColumnWidth(),
                                           },
                                       defaultVerticalAlignment:
                                           TableCellVerticalAlignment.middle,
@@ -624,6 +640,12 @@ class DetailsScreen extends StatelessWidget {
                                                 8.0,
                                               ),
                                               child: Text('Espessura'),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Text('Matricula'),
                                             ),
                                           ],
                                         ),
@@ -676,6 +698,14 @@ class DetailsScreen extends StatelessWidget {
                                               ),
                                               child: Text(
                                                 itemPecas.espessura ?? '',
+                                              ),
+                                            ),
+                                            Padding(
+                                              padding: const EdgeInsets.all(
+                                                8.0,
+                                              ),
+                                              child: Text(
+                                                itemPecas.matricula ?? '',
                                               ),
                                             ),
                                           ],

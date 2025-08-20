@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dartt_integraforwood/Models/cadire2.dart';
 import 'package:dartt_integraforwood/Models/cadiredi.dart';
 import 'package:dartt_integraforwood/Models/cadireta.dart';
 import 'package:dartt_integraforwood/db/postgres_connection.dart';
@@ -212,6 +213,62 @@ class HomeScreenRepository {
       'caddpdes': cadiredi.caddpdes,
       'caddper': cadiredi.caddper,
       'caddqtd': cadiredi.caddqtd,
+    };
+    try {
+      await connection.execute(query, parameters: parameters);
+      return "";
+    } catch (e) {
+      return 'Erro linha $contador da $s: $e';
+    }
+  }
+
+  Future<String> deleteCadire2() async {
+    final connection = PostgresConnection().connection;
+
+    if (connection == null) {
+      throw Exception('Erro: Conexão não iniciada');
+    }
+    final query = Sql.named('DELETE FROM cadire2');
+    try {
+      await connection.execute(query);
+      return "";
+    } catch (e) {
+      return 'Erro ao deletar cadire2: $e';
+    }
+  }
+
+  // Novo método para deletar apenas registros de um projeto específico
+  Future<String> deleteCadire2ByProject(String cadinfprod) async {
+    final connection = PostgresConnection().connection;
+
+    if (connection == null) {
+      throw Exception('Erro: Conexão não iniciada');
+    }
+    final query = Sql.named('DELETE FROM cadire2 WHERE cadinfprod = @cadinfprod');
+    try {
+      await connection.execute(query, parameters: {'cadinfprod': cadinfprod});
+      return "";
+    } catch (e) {
+      return 'Erro ao deletar cadire2 do projeto $cadinfprod: $e';
+    }
+  }
+
+  Future<String> saveCadire2(Cadire2 cadire2, int contador, String s) async {
+    final connection = PostgresConnection().connection;
+
+    if (connection == null) {
+      throw Exception('Erro: Conexão não iniciada');
+    }
+    final query = Sql.named(
+      'INSERT INTO cadire2 (cadinfcont, cadinfprod, cadinfseq, cadinfdes, cadinfinf) '
+      'VALUES (@cadinfcont, @cadinfprod, @cadinfseq, @cadinfdes, @cadinfinf)',
+    );
+    final parameters = {
+      'cadinfcont': cadire2.cadinfcont,
+      'cadinfprod': cadire2.cadinfprod,
+      'cadinfseq': cadire2.cadinfseq,
+      'cadinfdes': cadire2.cadinfdes,
+      'cadinfinf': cadire2.cadinfinf,
     };
     try {
       await connection.execute(query, parameters: parameters);

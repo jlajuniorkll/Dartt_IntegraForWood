@@ -1,13 +1,17 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:dartt_integraforwood/Models/cadire2.dart';
 import 'package:dartt_integraforwood/Models/cadiredi.dart';
 import 'package:dartt_integraforwood/Models/cadireta.dart';
 import 'package:dartt_integraforwood/Models/outlite.dart';
+import 'package:dartt_integraforwood/Models/xml_history.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/repository/home_screen_repository.dart';
+import 'package:dartt_integraforwood/commom/commom_functions.dart';
 import 'package:dartt_integraforwood/commom/pdf_service.dart';
 import 'package:dartt_integraforwood/db/postgres_connection.dart';
 import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
+import 'package:dartt_integraforwood/services/xml_importado_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:xml/xml.dart';
@@ -19,6 +23,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class HomeScreenController extends GetxController {
   final homeScreenRepository = HomeScreenRepository();
   final pdfService = PdfService();
+  final xmlImportadoService = XmlImportadoService();
 
   bool databaseOn = false;
   bool databasePro = false;
@@ -34,6 +39,32 @@ class HomeScreenController extends GetxController {
   RxBool sqlServerConnected = false.obs;
   RxString sqlServerStatus = 'Verificando conexão...'.obs;
   RxString sqlServerError = ''.obs;
+
+  // Variáveis para armazenar dados enviados às tabelas PostgreSQL
+  List<Map<String, dynamic>> _sentCadiretaData = [];
+  List<Map<String, dynamic>> _sentCadirediData = [];
+  List<Map<String, dynamic>> _sentCadproceData = [];
+  List<Map<String, dynamic>> _sentCadire2Data = [];
+
+  // Getters para acessar os dados enviados
+  List<Map<String, dynamic>> get sentCadiretaData =>
+      List.unmodifiable(_sentCadiretaData);
+  List<Map<String, dynamic>> get sentCadirediData =>
+      List.unmodifiable(_sentCadirediData);
+  List<Map<String, dynamic>> get sentCadproceData =>
+      List.unmodifiable(_sentCadproceData);
+  List<Map<String, dynamic>> get sentCadire2Data =>
+      List.unmodifiable(_sentCadire2Data);
+
+  // Método para obter todos os dados enviados de uma vez
+  Map<String, List<Map<String, dynamic>>> getAllSentData() {
+    return {
+      'cadireta': sentCadiretaData,
+      'cadiredi': sentCadirediData,
+      'cadproce': sentCadproceData,
+      'cadire2': sentCadire2Data,
+    };
+  }
 
   @override
   void onInit() {
@@ -172,11 +203,33 @@ class HomeScreenController extends GetxController {
       final testa = testas.first;
       final righeElement = righes.first;
 
-      final List<ItemBox> itemBoxList = [];
+      // Ler CODPAIPED antes de criar o outlite
       codMestre =
           parsedXml.findAllElements('CODPAIPED').isNotEmpty
               ? parsedXml.findAllElements('CODPAIPED').first.innerText
               : 'CRIAR CÓDIGO';
+
+      final outlite = Outlite(
+        data:
+            testa.findElements('DATA').isNotEmpty
+                ? testa.findElements('DATA').first.innerText
+                : null,
+        numero:
+            testa.findElements('NUMERO').isNotEmpty
+                ? testa.findElements('NUMERO').first.innerText
+                : null,
+        numeroFabricacao: null,
+        dataDesenho: null,
+        rif:
+            testa.findElements('RIF').isNotEmpty
+                ? testa.findElements('RIF').first.innerText
+                : 'SEM DESCRICAO',
+        fileName: fileName,
+        itembox: [],
+        codpai: codMestre,
+      );
+
+      final List<ItemBox> itemBoxList = [];
       /*codMestre =
           parsedXml
               .findAllElements('CODPAIPED')
@@ -232,31 +285,26 @@ class HomeScreenController extends GetxController {
                 riga.findElements('P').isNotEmpty
                     ? riga.findElements('P').first.innerText
                     : null,
-            itemPecas: await getItemPecas(distintatLines, codigo),
-            itemPrice: await getPriceItems(dettprezzoLines, codigo),
+            itemPecas: await getItemPecas(
+              distintatLines,
+              codigo,
+              testa.findElements('NUMERO').isNotEmpty
+                  ? testa.findElements('NUMERO').first.innerText
+                  : null,
+              outlite, // Passar o objeto outlite
+            ),
+            itemPrice: await getPriceItems(
+              dettprezzoLines,
+              codigo,
+              testa.findElements('NUMERO').isNotEmpty
+                  ? testa.findElements('NUMERO').first.innerText
+                  : null,
+            ),
           ),
         );
       }
 
-      final outlite = Outlite(
-        data:
-            testa.findElements('DATA').isNotEmpty
-                ? testa.findElements('DATA').first.innerText
-                : null,
-        numero:
-            testa.findElements('NUMERO').isNotEmpty
-                ? testa.findElements('NUMERO').first.innerText
-                : null,
-        dataDesenho: null,
-        rif:
-            testa.findElements('RIF').isNotEmpty
-                ? testa.findElements('RIF').first.innerText
-                : 'SEM DESCRICAO',
-        fileName: fileName,
-        itembox: itemBoxList,
-        codpai: codMestre,
-      );
-
+      outlite.itembox = itemBoxList;
       outliteData.value = outlite;
     }
   }
@@ -264,6 +312,8 @@ class HomeScreenController extends GetxController {
   Future<List<ItemPecas>> getItemPecas(
     RxMap<String, List<String>>? distintatLines,
     String? codigo,
+    String? numeroXml,
+    Outlite? outlite,
   ) async {
     List<ItemPecas> itemPecas = [];
     List<String> distintatSplited = [];
@@ -280,6 +330,26 @@ class HomeScreenController extends GetxController {
       for (var line in distintatLines[codigo]!) {
         List<String> partes = line.split(',');
         if (partes.length > 1) {
+          // Extrair matrícula do último campo
+          String? matricula;
+          if (partes.length > 0) {
+            String ultimoCampo = partes.last;
+            RegExp regexMatricula = RegExp(r'#M\d+/\d+/(\d+)');
+            Match? match = regexMatricula.firstMatch(ultimoCampo);
+            if (match != null) {
+              String numeroMatricula = match.group(1)!;
+              // Formatar matrícula com número de fabricação se disponível
+              if (outlite?.numeroFabricacao != null) {
+                matricula = formatMatricula(
+                  outlite!.numeroFabricacao.toString(),
+                  numeroMatricula,
+                );
+              } else {
+                matricula = numeroMatricula;
+              }
+            }
+          }
+
           // Verifica se a linha tem pelo menos dois campos
           if (partes[7].isNotEmpty) {
             trabalhoesq = partes[7].split('/')[0];
@@ -291,6 +361,9 @@ class HomeScreenController extends GetxController {
             fitafre = partes[7].split('/')[6];
             fitatra = partes[7].split('/')[7];
           }
+
+
+
           itemPecas.add(
             ItemPecas(
               codpeca: partes[0],
@@ -309,6 +382,8 @@ class HomeScreenController extends GetxController {
               fitadir: fitadir,
               fitafre: fitafre,
               fitatra: fitatra,
+              matricula: matricula,
+
               grupo: await homeScreenRepository.getProdutoForId(
                 partes[0],
                 'grupo_produto',
@@ -334,7 +409,7 @@ class HomeScreenController extends GetxController {
                 'fase_padrao_consumo',
               ),
             ),
-          ); // Imprime o segundo campo (o valor)
+          );
         } else {
           //TODO: 'Linha inválida: $line', Lida com linhas que não têm o formato esperado
         }
@@ -346,26 +421,240 @@ class HomeScreenController extends GetxController {
 
   Future<void> saveDataBase({Outlite? outlite, String? xmlString}) async {
     saveCadiretaLoading.value = true;
+
     if (outliteData.value != null) {
+      // Salvar no banco PostgreSQL (ForWood)
       await saveCadireta(outliteData.value!);
+
+      // Se o salvamento foi bem-sucedido, salvar também no SQLite
+      if (saveOKCadireta.isEmpty && cadiretaSuccess.value == true) {
+        await _saveXmlToSqlite(outliteData.value!, xmlString);
+      }
     }
+
     saveCadiretaLoading.value = false;
+  }
+
+  // Método para salvar XML e dados JSON no SQLite
+  Future<void> _saveXmlToSqlite(Outlite outlite, String? xmlString) async {
+    try {
+      // Coletar dados JSON das tabelas
+      final jsonCadiredi = await _collectCadirediData(outlite);
+      final jsonCadireta = await _collectCadiretaData(outlite);
+      final jsonCadproce = await _collectCadproceData(outlite);
+      final jsonCadire2 = await _collectCadire2Data(outlite);
+
+      final xmlImportado = XmlImportado(
+        numero: outlite.numero ?? '',
+        rif: outlite.rif ?? '',
+        pai: outlite.codpai ?? '',
+        data: outlite.dataDesenho ?? DateTime.now().toIso8601String(),
+        numeroFabricacao: '', // Será preenchido pelo usuário posteriormente
+        status: StatusXml.aguardando.value,
+        jsonCadiredi: jsonCadiredi,
+        jsonCadireta: jsonCadireta,
+        jsonCadproce: jsonCadproce,
+        jsonCadire2: jsonCadire2,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Tentar salvar no SQLite com verificação de duplicata
+      try {
+        await xmlImportadoService.insertOrUpdateXmlImportado(xmlImportado);
+        print('XML salvo no SQLite com sucesso!');
+      } catch (e) {
+        if (e.toString().contains('XML_ALREADY_EXISTS')) {
+          // Mostrar diálogo de confirmação
+          final shouldOverwrite = await _showOverwriteDialog(
+            outlite.numero ?? '',
+          );
+
+          if (shouldOverwrite) {
+            try {
+              await xmlImportadoService.insertOrUpdateXmlImportado(
+                xmlImportado,
+                forceUpdate: true,
+              );
+              Get.snackbar(
+                'Sucesso',
+                'Nova revisão criada com sucesso!',
+                backgroundColor: Colors.green,
+                colorText: Colors.white,
+              );
+            } catch (revisionError) {
+              if (revisionError.toString().contains(
+                'está em produção ou finalizado',
+              )) {
+                Get.snackbar(
+                  'Erro',
+                  'Não é possível criar nova revisão. O XML está em produção ou finalizado.',
+                  backgroundColor: Colors.red,
+                  colorText: Colors.white,
+                );
+              } else {
+                Get.snackbar(
+                  'Erro',
+                  'Erro ao criar nova revisão: $revisionError',
+                  backgroundColor: Colors.red,
+                  colorText: Colors.white,
+                );
+              }
+            }
+          } else {
+            Get.snackbar(
+              'Cancelado',
+              'Operação cancelada pelo usuário.',
+              backgroundColor: Colors.orange,
+              colorText: Colors.white,
+            );
+          }
+        } else {
+          throw e;
+        }
+      }
+    } catch (e) {
+      print('Erro ao salvar XML no SQLite: $e');
+      Get.snackbar(
+        'Erro',
+        'Erro ao salvar XML: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  // Método para mostrar diálogo de confirmação
+  Future<bool> _showOverwriteDialog(String numeroXml) async {
+    return await Get.dialog<bool>(
+          AlertDialog(
+            title: const Text('XML Duplicado'),
+            content: Text(
+              'Já existe um XML com o número "$numeroXml".\n\nDeseja criar uma nova revisão?\nAo criar uma nova revisão, os dados anteriores serão mantidos.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(result: false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Get.back(result: true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('Criar Nova Revisão'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
+  // Métodos para coletar dados JSON das tabelas
+
+  Future<String> _collectCadirediData(Outlite outlite) async {
+    try {
+      // Retornar todos os dados enviados da Cadiredi para este XML
+      // A filtragem deve ser feita de forma diferente, pois cadpai contém o código da peça
+      List<Map<String, dynamic>> filteredData = _sentCadirediData;
+
+      return jsonEncode(filteredData);
+    } catch (e) {
+      print('Erro ao coletar dados Cadiredi: $e');
+      return '[]';
+    }
+  }
+
+  Future<String> _collectCadiretaData(Outlite outlite) async {
+    try {
+      // Retornar dados enviados em vez de consultar o banco
+      List<Map<String, dynamic>> filteredData =
+          _sentCadiretaData
+              .where((item) => item['cadpai'] == outlite.codpai)
+              .toList();
+
+      // Converter DateTime para String para serialização JSON
+    for (var item in filteredData) {
+      if (item['cadgrav'] is DateTime) {
+        item['cadgrav'] = (item['cadgrav'] as DateTime).toIso8601String();
+      }
+      if (item['cadimpdt'] is DateTime?) {
+        item['cadimpdt'] = (item['cadimpdt'] as DateTime?)?.toIso8601String();
+      }
+      }
+
+      return jsonEncode(filteredData);
+    } catch (e) {
+      print('Erro ao coletar dados Cadireta: $e');
+      return '[]';
+    }
+  }
+
+  Future<String> _collectCadproceData(Outlite outlite) async {
+    try {
+      // Retornar dados enviados (vazio por enquanto, pois não há inserção de Cadproce)
+      List<Map<String, dynamic>> filteredData =
+          _sentCadproceData
+              .where(
+                (item) =>
+                    item['cadpprod'].toString().startsWith(outlite.numero!),
+              )
+              .toList();
+
+      return jsonEncode(filteredData);
+    } catch (e) {
+      print('Erro ao coletar dados Cadproce: $e');
+      return '[]';
+    }
+  }
+
+  Future<String> _collectCadire2Data(Outlite outlite) async {
+    try {
+      // Retornar dados enviados (vazio por enquanto, pois não há inserção de Cadire2)
+      List<Map<String, dynamic>> filteredData =
+          _sentCadire2Data
+              .where(
+                (item) =>
+                    item['cadinfprod'].toString().startsWith(outlite.numero!),
+              )
+              .toList();
+
+      return jsonEncode(filteredData);
+    } catch (e) {
+      print('Erro ao coletar dados Cadire2: $e');
+      return '[]';
+    }
   }
 
   Future<List<ItemPrice>> getPriceItems(
     RxMap<String, List<String>> dettprezzoLines,
     String codigo,
+    String? numeroXml, // Adicionar parâmetro para o número do XML
   ) async {
     List<ItemPrice> itemPrice = [];
     if (dettprezzoLines.isNotEmpty) {
       for (var lineDP in dettprezzoLines[codigo]!) {
         List<String> partesDP = lineDP.split(';');
         if (partesDP.length > 1) {
+          // Extrair matrícula do último campo
+          String? matricula;
+          if (partesDP.length > 0) {
+            String ultimoCampo = partesDP.last;
+            // Procurar por padrão #M8/71/NUMERO ou similar
+            RegExp regexMatricula = RegExp(r'#M\d+/\d+/(\d+)');
+            Match? match = regexMatricula.firstMatch(ultimoCampo);
+            if (match != null) {
+              String numeroMatricula =
+                  match.group(1)!; // Captura o número da matrícula
+              // Aplicar a formatação usando o número do XML e o número da matrícula
+              matricula = formatMatricula(numeroXml, numeroMatricula);
+            }
+          }
+
           itemPrice.add(
             ItemPrice(
               codigo: partesDP[1],
               des: await homeScreenRepository.getDescricaoProduto(partesDP[1]),
               qtd: partesDP[6],
+              matricula: matricula, // Adicionar a matrícula extraída
             ),
           );
         }
@@ -377,11 +666,16 @@ class HomeScreenController extends GetxController {
   }
 
   Future<void> saveCadireta(Outlite outlite) async {
-    homeScreenRepository.deleteCadireta();
-    homeScreenRepository.deleteCadiredi();
-    int contador = 0; // Defina o valor de cadcont conforme necessário
-    int contadorItemPeca = 0; // Defina o valor de cadcont conforme necessário
-    int contadorItemCompra = 0; // Defina o valor de cadcont conforme necessário
+    // Limpar dados anteriores
+    _sentCadiretaData.clear();
+    _sentCadirediData.clear();
+    _sentCadproceData.clear();
+
+    await homeScreenRepository.deleteCadireta();
+    await homeScreenRepository.deleteCadiredi();
+    int contador = 0;
+    int contadorItemPeca = 0;
+    int contadorItemCompra = 0;
 
     // Obter o valor de codbatismomodulo do SharedPreferences
     final prefs = await SharedPreferences.getInstance();
@@ -446,6 +740,9 @@ class HomeScreenController extends GetxController {
         caddimper: 0.00,
         cadapp: 'PDM',
       );
+      // CAPTURAR dados antes de enviar
+      _sentCadiretaData.add(cadireta.toMap());
+
       final error = await homeScreenRepository.saveCadireta(
         cadireta,
         contadorItemPeca,
@@ -522,6 +819,9 @@ class HomeScreenController extends GetxController {
           caddimper: 0.00,
           cadapp: 'PDM',
         );
+        // CAPTURAR dados antes de enviar
+        _sentCadiretaData.add(cadireta.toMap());
+
         final error = await homeScreenRepository.saveCadireta(
           cadireta,
           contadorItemPeca,
@@ -644,6 +944,9 @@ class HomeScreenController extends GetxController {
                 caddimper: 0.00,
                 cadapp: 'PDM',
               );
+              // CAPTURAR dados antes de enviar
+              _sentCadiretaData.add(cadireta.toMap());
+
               final error = await homeScreenRepository.saveCadireta(
                 cadireta,
                 contadorItemCompra,
@@ -675,6 +978,20 @@ class HomeScreenController extends GetxController {
                     (itemPeca.fitadir?.trim().toUpperCase() == 'S') ? 'S' : 'N',
                 caddpdes: '',
               );
+              // CAPTURAR dados antes de enviar
+              _sentCadirediData.add(cadiredi.toMap());
+
+              // Adicionar dados de cadproce e cadire2
+              _sentCadproceData.add({
+                'cadpprod': outlite.numero,
+                'cadpseq': contadorItemCompra,
+                'cadpcom': double.tryParse(itemPeca.comprimento ?? '') ?? 0.0,
+                'cadplar': double.tryParse(itemPeca.largura ?? '') ?? 0.0,
+                'cadpesp': double.tryParse(itemPeca.espessura ?? '') ?? 0.0,
+              });
+
+
+
               final errorCadiredi = await homeScreenRepository.saveCadiredi(
                 cadiredi,
                 contadorItemCompra,
@@ -717,10 +1034,6 @@ class HomeScreenController extends GetxController {
   }
 
   void sync3Cad() {}
-
-  Future<void> sendJob() async {
-    // await homeScreenRepository.sendJob();
-  }
 
   Future<void> generateCompradosReport() async {
     await pdfService.printCompradosReport(outliteData.value!);
