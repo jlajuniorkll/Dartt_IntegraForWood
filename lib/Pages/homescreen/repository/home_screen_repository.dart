@@ -244,7 +244,9 @@ class HomeScreenRepository {
     if (connection == null) {
       throw Exception('Erro: Conexão não iniciada');
     }
-    final query = Sql.named('DELETE FROM cadire2 WHERE cadinfprod = @cadinfprod');
+    final query = Sql.named(
+      'DELETE FROM cadire2 WHERE cadinfprod = @cadinfprod',
+    );
     try {
       await connection.execute(query, parameters: {'cadinfprod': cadinfprod});
       return "";
@@ -358,6 +360,7 @@ class HomeScreenRepository {
 
       double? valorFinal;
       try {
+        // ignore: deprecated_member_use
         Parser p = Parser();
         Expression exp = p.parse(qtaSubstituida);
         ContextModel cm = ContextModel();
@@ -559,8 +562,9 @@ class HomeScreenRepository {
         }
       }
 
-      if (andResult)
+      if (andResult) {
         return true; // se qualquer OR for verdadeiro -> expressão verdadeira
+      }
     }
 
     return false;
@@ -573,149 +577,3 @@ class HomeScreenRepository {
     return double.tryParse(t);
   }
 }
-
-/*  Future<String> getDistinta(
-    String codDistinta,
-    String? variaveis,
-    double comp,
-    double larg,
-    double alt,
-  ) async {
-    final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
-
-    // 1. Consulta principal da distinta
-    String query =
-        "SELECT CODFIG, QTA, FASE, VALIDO FROM DISTINTA WHERE cod = '$codDistinta'";
-    String rawResult = await mssqlConnection.getData(query);
-
-    List<Map<String, dynamic>> jsonList = List<Map<String, dynamic>>.from(
-      json.decode(rawResult),
-    );
-
-    // 2. Monta mapa de variáveis vindas da string
-    Map<String, String> valores = {};
-    for (var par in variaveis!.split(';')) {
-      if (par.contains('=')) {
-        var partes = par.split('=');
-        valores[partes[0].toUpperCase()] = partes[1];
-      }
-    }
-
-    // 3. Adiciona variáveis de dimensão
-    valores['L'] = comp.toString();
-    valores['A'] = larg.toString();
-    valores['P'] = alt.toString();
-
-    List<Map<String, dynamic>> processados = [];
-    Set<String> codigosUnicos = {};
-    Set<String> fasesCodigosParaBuscar = {};
-
-    for (var item in jsonList) {
-      final codfig =
-          substituirVariaveis(item['CODFIG'], valores).trim().toUpperCase();
-      String qtaRaw = item['QTA']?.replaceAll('\u0010', '').trim() ?? '';
-      String qtaSubstituida = substituirVariaveis(qtaRaw, valores);
-
-      double? valorFinal;
-      try {
-        // ignore: deprecated_member_use
-        Expression exp = Parser().parse(qtaSubstituida);
-        ContextModel cm = ContextModel();
-        valorFinal = exp.evaluate(EvaluationType.REAL, cm);
-      } catch (_) {
-        valorFinal = double.tryParse(qtaSubstituida);
-      }
-
-      if (valorFinal != null && codfig.isNotEmpty) {
-        final fase = item['FASE']?.toString().trim() ?? '';
-        if (fase.isEmpty) {
-          fasesCodigosParaBuscar.add(codfig);
-        }
-
-        codigosUnicos.add(codfig);
-        processados.add({
-          'CODFIG': codfig,
-          'QTA': valorFinal.toStringAsFixed(4),
-          'FASE': fase,
-        });
-      }
-    }
-
-    // 4. Busca descrição dos CODFIG
-    Map<String, String> mapaDescricao = {};
-    if (codigosUnicos.isNotEmpty) {
-      String codigosStr = codigosUnicos.map((c) => "'$c'").join(',');
-      String queryDesc =
-          "SELECT cod, des FROM articoli WHERE UPPER(LTRIM(RTRIM(cod))) IN ($codigosStr)";
-      String rawDescResult = await mssqlConnection.getData(queryDesc);
-
-      List<Map<String, dynamic>> descList = List<Map<String, dynamic>>.from(
-        json.decode(rawDescResult),
-      );
-
-      for (var d in descList) {
-        String key = (d['cod'] ?? '').toString().trim().toUpperCase();
-        String desc = (d['des'] ?? '').toString();
-        mapaDescricao[key] = desc;
-      }
-    }
-
-    // 5. Busca descrição das fases faltantes (onde FASE estava em branco)
-    Map<String, String> mapaFaseDescricao = {};
-    if (fasesCodigosParaBuscar.isNotEmpty) {
-      for (String cod in fasesCodigosParaBuscar) {
-        String queryFase = "SELECT des FROM fasi WHERE cod = '$cod'";
-        String rawFaseResult = await mssqlConnection.getData(queryFase);
-        try {
-          List<dynamic> faseList = json.decode(rawFaseResult);
-          if (faseList.isNotEmpty) {
-            String descricaoFase = faseList.first['des'] ?? '';
-            mapaFaseDescricao[cod] = descricaoFase;
-          }
-        } catch (_) {
-          mapaFaseDescricao[cod] = '';
-        }
-      }
-    }
-
-    // 6. Adiciona descrições ao resultado final
-    for (var item in processados) {
-      final cod = item['CODFIG'];
-      if ((item['FASE'] ?? '').isEmpty) {
-        item['DESCRICAO'] = mapaFaseDescricao[cod] ?? '';
-      } else {
-        item['DESCRICAO'] = mapaDescricao[cod] ?? '';
-      }
-    }
-
-    // 7. Resultado final
-    // print(jsonEncode(processados));
-    return jsonEncode(processados);
-  }
-
-  // 3. Função para substituir placeholders
-  String substituirVariaveis(String input, Map<String, String> valores) {
-    RegExp regex = RegExp(r"<([^<>]+)>");
-    return input.replaceAllMapped(regex, (match) {
-      String chave = match.group(1)?.toUpperCase() ?? '';
-      return valores[chave] ?? '';
-    });
-  }
-
-  // busca descrição do item
-  Future<String> buscarDescricao(String codfig) async {
-    final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
-
-    String query = "SELECT DESCRICAO FROM PRODUTOS WHERE CODFIG = '$codfig'";
-    String rawResult = await mssqlConnection.getData(query);
-
-    try {
-      List<Map<String, dynamic>> result = List<Map<String, dynamic>>.from(
-        json.decode(rawResult),
-      );
-      if (result.isNotEmpty) {
-        return result.first['DESCRICAO'] ?? '';
-      }
-    } catch (_) {}
-    return '';
-  }*/

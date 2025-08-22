@@ -24,12 +24,12 @@ class XmlImportadoService {
   Future<Database> _initDatabase() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String path = join(documentsDirectory.path, _databaseName);
-
+    // ignore: avoid_print
     print('Caminho do banco SQLite: $path'); // Debug
 
     Database db = await openDatabase(
       path,
-      version: 2, // Incrementando versão para migração
+      version: 3, // Incrementando versão para nova migração
       onCreate: _createDatabase,
       onUpgrade: _upgradeDatabase,
     );
@@ -52,9 +52,10 @@ class XmlImportadoService {
       await db.update(_tableName, {
         'revisao': 1,
       }, where: 'revisao IS NULL OR revisao = 0');
-
+      // ignore: avoid_print
       print('Dados de status corrigidos com sucesso');
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao corrigir dados de status: $e');
     }
   }
@@ -72,6 +73,7 @@ class XmlImportadoService {
         jsonCadiredi TEXT,
         jsonCadireta TEXT,
         jsonCadproce TEXT,
+        jsonOutlite TEXT,
         jsonCadire2 TEXT,
         revisao INTEGER NOT NULL DEFAULT 1,
         createdAt INTEGER NOT NULL,
@@ -98,6 +100,12 @@ class XmlImportadoService {
         'ALTER TABLE $_tableName ADD COLUMN revisao INTEGER NOT NULL DEFAULT 1',
       );
       await db.execute('CREATE INDEX idx_revisao ON $_tableName (revisao)');
+    }
+    if (oldVersion < 3) {
+      // Adicionar campo jsonOutlite para versão 3
+      await db.execute(
+        'ALTER TABLE $_tableName ADD COLUMN jsonOutlite TEXT',
+      );
     }
   }
 
@@ -187,19 +195,17 @@ class XmlImportadoService {
     XmlImportado xmlImportado, {
     bool forceUpdate = false,
   }) async {
-    final db = await database;
-
     // Se tem ID, é uma atualização
     if (xmlImportado.id != null) {
       return await updateXmlImportado(xmlImportado);
     }
 
     // Se não tem ID, verificar se já existe um XML com o mesmo número
-    bool exists = await xmlExists(xmlImportado.numero!);
+    bool exists = await xmlExists(xmlImportado.numero);
 
     if (exists) {
       // Verificar se pode criar nova revisão
-      bool canCreate = await canCreateNewRevision(xmlImportado.numero!);
+      bool canCreate = await canCreateNewRevision(xmlImportado.numero);
       // Verificar se pode criar nova revisão
       if (!canCreate) {
         throw Exception(
@@ -210,7 +216,7 @@ class XmlImportadoService {
       if (forceUpdate) {
         // Se forceUpdate é true, atualizar o registro existente
         final existingXml = await getLatestRevisionByNumero(
-          xmlImportado.numero!,
+          xmlImportado.numero,
         );
         if (existingXml != null) {
           xmlImportado = xmlImportado.copyWith(id: existingXml.id);
@@ -285,7 +291,11 @@ class XmlImportadoService {
   // Deletar todas as revisões de um XML por número
   Future<int> deleteAllRevisionsByNumero(String numero) async {
     final db = await database;
-    return await db.delete(_tableName, where: 'numero = ?', whereArgs: [numero]);
+    return await db.delete(
+      _tableName,
+      where: 'numero = ?',
+      whereArgs: [numero],
+    );
   }
 
   // Buscar XMLs por conteúdo (numero, rif, pai)
@@ -375,10 +385,8 @@ class XmlImportadoService {
 
   // Criar nova revisão de um XML existente
   Future<int> createNewRevision(XmlImportado xmlImportado) async {
-    final db = await database;
-
     // Buscar próximo número de revisão
-    int nextRevision = await getNextRevisionNumber(xmlImportado.numero!);
+    int nextRevision = await getNextRevisionNumber(xmlImportado.numero);
 
     // Criar nova instância com revisão incrementada
     XmlImportado newRevision = XmlImportado(
@@ -403,8 +411,7 @@ class XmlImportadoService {
     final db = await database;
 
     // Query para contar apenas a última revisão de cada XML por status
-    final List<Map<String, dynamic>> result = await db.rawQuery(
-      '''
+    final List<Map<String, dynamic>> result = await db.rawQuery('''
       SELECT status, COUNT(*) as count 
       FROM $_tableName t1
       WHERE t1.revisao = (
@@ -413,8 +420,7 @@ class XmlImportadoService {
         WHERE t2.numero = t1.numero
       )
       GROUP BY status
-      ''',
-    );
+      ''');
 
     // Converter resultado para Map
     Map<String, int> statusCount = {};

@@ -110,7 +110,7 @@ class SettingsController extends GetxController {
 
       // Mostrar mensagem de sucesso imediatamente
       Get.snackbar(
-        'Sucesso', 
+        'Sucesso',
         'Configurações salvas com sucesso!',
         backgroundColor: Colors.green.shade100,
         colorText: Colors.green.shade800,
@@ -118,10 +118,9 @@ class SettingsController extends GetxController {
 
       // Validar conexões em background (sem bloquear a UI)
       _validateConnectionsInBackground();
-      
     } catch (e) {
       Get.snackbar(
-        'Erro', 
+        'Erro',
         'Erro ao salvar configurações: $e',
         backgroundColor: Colors.red.shade100,
         colorText: Colors.red.shade800,
@@ -139,28 +138,35 @@ class SettingsController extends GetxController {
         // Se não encontrar o controller, não faz nada
         return;
       }
-      
+
       // Validar conexões com timeout
       await Future.wait([
         Future.delayed(Duration.zero, () async {
           try {
-            await homeController!.connectDatabase().timeout(Duration(seconds: 10));
+            await homeController!.connectDatabase().timeout(
+              Duration(seconds: 10),
+            );
           } catch (e) {
+            // ignore: avoid_print
             print('Timeout ou erro na conexão PostgreSQL: $e');
           }
         }),
         Future.delayed(Duration.zero, () async {
           try {
-            await homeController!.connectSqlServer().timeout(Duration(seconds: 10));
+            await homeController!.connectSqlServer().timeout(
+              Duration(seconds: 10),
+            );
           } catch (e) {
+            // ignore: avoid_print
             print('Timeout ou erro na conexão SQL Server: $e');
           }
         }),
       ]).timeout(Duration(seconds: 15));
-      
+
       // Verificar resultados apenas se ainda estiver na tela de configurações
       if (Get.currentRoute.contains('settings')) {
-        if (!homeController.databaseOn || !homeController.sqlServerConnected.value) {
+        if (!homeController.databaseOn ||
+            !homeController.sqlServerConnected.value) {
           String errorMessage = 'Atenção: Problemas detectados nas conexões:\n';
           if (!homeController.databaseOn) {
             errorMessage += '• PostgreSQL: Falha na conexão\n';
@@ -168,9 +174,9 @@ class SettingsController extends GetxController {
           if (!homeController.sqlServerConnected.value) {
             errorMessage += '• SQL Server: Falha na conexão';
           }
-          
+
           Get.snackbar(
-            'Atenção', 
+            'Atenção',
             errorMessage,
             backgroundColor: Colors.orange.shade100,
             colorText: Colors.orange.shade800,
@@ -180,6 +186,7 @@ class SettingsController extends GetxController {
       }
     } catch (e) {
       // Falha silenciosa na validação em background
+      // ignore: avoid_print
       print('Erro na validação em background: $e');
     }
   }

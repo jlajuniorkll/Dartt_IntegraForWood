@@ -42,9 +42,10 @@ Future<Map<String, String>> consultarListaCorte(
   String matricola,
 ) async {
   final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
+  String codpeca = formatMatriculaComFabricacao(numeroFabricacao, matricola);
 
   String query =
-      "SELECT PRG1, PRG2 FROM Lista_corte WHERE numero='$numeroFabricacao' AND idpeca='$matricola'";
+      "SELECT PRG1, PRG2 FROM Lista_corte WHERE numero='$numeroFabricacao' AND idpeca='$codpeca'";
 
   try {
     String rawResult = await mssqlConnection.getData(query);
@@ -58,6 +59,7 @@ Future<Map<String, String>> consultarListaCorte(
       };
     }
   } catch (e) {
+    // ignore: avoid_print
     print('Erro ao consultar Lista_corte: $e');
   }
 

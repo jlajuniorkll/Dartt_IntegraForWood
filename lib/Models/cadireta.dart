@@ -48,6 +48,8 @@ class Cadireta {
   String cadindter;
   double caddimper;
   String cadapp;
+  String? cadmatricula; // Novo campo apenas para JSON, não persiste no banco
+
   Cadireta({
     required this.cadcont,
     required this.cadpai,
@@ -95,6 +97,7 @@ class Cadireta {
     required this.cadindter,
     this.caddimper = 0.00,
     this.cadapp = 'PDM',
+    this.cadmatricula, // Adicionar ao construtor
   });
 
   Map<String, dynamic> toMap() {
@@ -145,6 +148,7 @@ class Cadireta {
       'cadindter': cadindter,
       'caddimper': caddimper,
       'cadapp': cadapp,
+      'cadmatricula': cadmatricula, // Adicionar ao JSON
     };
   }
 

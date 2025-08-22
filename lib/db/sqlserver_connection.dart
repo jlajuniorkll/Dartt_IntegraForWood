@@ -59,7 +59,8 @@ class SqlServerConnection {
       List<Map<String, String>> connectionConfigs = [
         {
           'name': 'ODBC Driver 17',
-          'connectionString': 'DRIVER={ODBC Driver 17 for SQL Server};'
+          'connectionString':
+              'DRIVER={ODBC Driver 17 for SQL Server};'
               'SERVER=$ip;'
               'DATABASE=$database;'
               'UID=$username;'
@@ -69,7 +70,8 @@ class SqlServerConnection {
         },
         {
           'name': 'ODBC Driver 13',
-          'connectionString': 'DRIVER={ODBC Driver 13 for SQL Server};'
+          'connectionString':
+              'DRIVER={ODBC Driver 13 for SQL Server};'
               'SERVER=$ip;'
               'DATABASE=$database;'
               'UID=$username;'
@@ -79,7 +81,8 @@ class SqlServerConnection {
         },
         {
           'name': 'SQL Server Native Client 11.0',
-          'connectionString': 'DRIVER={SQL Server Native Client 11.0};'
+          'connectionString':
+              'DRIVER={SQL Server Native Client 11.0};'
               'SERVER=$ip;'
               'DATABASE=$database;'
               'UID=$username;'
@@ -89,7 +92,8 @@ class SqlServerConnection {
         },
         {
           'name': 'SQL Server (padrão)',
-          'connectionString': 'DRIVER={SQL Server};'
+          'connectionString':
+              'DRIVER={SQL Server};'
               'SERVER=$ip;'
               'DATABASE=$database;'
               'UID=$username;'
@@ -97,7 +101,8 @@ class SqlServerConnection {
         },
         {
           'name': 'SQLOLEDB.1',
-          'connectionString': 'Provider=SQLOLEDB.1;'
+          'connectionString':
+              'Provider=SQLOLEDB.1;'
               'Data Source=$ip;'
               'Initial Catalog=$database;'
               'User ID=$username;'
@@ -106,33 +111,42 @@ class SqlServerConnection {
               'Encrypt=No;',
         },
       ];
-      
+
       // Tentar cada string de conexão
       for (int i = 0; i < connectionConfigs.length; i++) {
         final config = connectionConfigs[i];
         final driverName = config['name']!;
         final connectionString = config['connectionString']!;
-        
+
         // Notificar progresso
         onProgress?.call(i + 1, connectionConfigs.length, driverName);
-        
+        // ignore: avoid_print
         print('Tentativa ${i + 1} de ${connectionConfigs.length}: $driverName');
-        print('String de conexão: ${connectionString.replaceAll(password, '***')}');
-        
+        // ignore: avoid_print
+        print(
+          'String de conexão: ${connectionString.replaceAll(password, '***')}',
+        );
+
         bool connected = _connectWithString(connectionString);
         if (connected) {
           _isConnected = connected;
+          // ignore: avoid_print
           print('Conexão bem-sucedida na tentativa ${i + 1} com $driverName');
           return connected;
         }
+        // ignore: avoid_print
         print('Tentativa ${i + 1} com $driverName falhou, tentando próxima...');
       }
 
       // Se chegou aqui, todas as tentativas falharam
       _isConnected = false;
-      print('Todas as ${connectionConfigs.length} tentativas de conexão falharam');
+      // ignore: avoid_print
+      print(
+        'Todas as ${connectionConfigs.length} tentativas de conexão falharam',
+      );
       return false;
     } catch (e) {
+      // ignore: avoid_print
       print('Erro na conexão SQL Server: $e');
       return false;
     }
@@ -149,6 +163,7 @@ class SqlServerConnection {
       List<Map<String, dynamic>> results = _executeQuery(query);
       return jsonEncode(results);
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao executar query: $e');
       return jsonEncode([
         {'erro': 'Erro ao executar consulta: $e'},
@@ -193,6 +208,7 @@ class SqlServerConnection {
       calloc.free(pEnv);
       return 0;
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao alocar environment: $e');
       return 0;
     }
@@ -212,6 +228,7 @@ class SqlServerConnection {
       calloc.free(pDbc);
       return 0;
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao alocar conexão: $e');
       return 0;
     }
@@ -239,14 +256,17 @@ class SqlServerConnection {
       calloc.free(outConnStrLen);
 
       if (result == SQL_SUCCESS || result == SQL_SUCCESS_WITH_INFO) {
+        // ignore: avoid_print
         print('Conexão SQLOLEDB estabelecida com sucesso');
         return true;
       } else {
+        // ignore: avoid_print
         print('Falha na conexão SQLOLEDB. Código de erro: $result');
         _printSQLError();
         return false;
       }
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao conectar com string: $e');
       return false;
     }
@@ -260,11 +280,17 @@ class SqlServerConnection {
       final textLength = calloc<Int16>();
 
       // Tentar obter informações de erro
+      // ignore: avoid_print
       print('Detalhes do erro de conexão SQLOLEDB:');
+      // ignore: avoid_print
       print('- Verifique se o SQL Server está rodando');
+      // ignore: avoid_print
       print('- Verifique se o serviço SQL Server Browser está ativo');
+      // ignore: avoid_print
       print('- Confirme o nome da instância: NOTEDARTT\\ECADPRO2019');
+      // ignore: avoid_print
       print('- Verifique as credenciais: sa / eCadPro2019');
+      // ignore: avoid_print
       print('- Verifique configurações de firewall');
 
       calloc.free(sqlState);
@@ -272,6 +298,7 @@ class SqlServerConnection {
       calloc.free(messageText);
       calloc.free(textLength);
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao obter detalhes do erro: $e');
     }
   }
@@ -305,6 +332,7 @@ class SqlServerConnection {
       SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
       return results;
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao executar query: $e');
       return [];
     }
@@ -377,6 +405,7 @@ class SqlServerConnection {
 
       return results;
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao buscar resultados: $e');
       return results;
     }
@@ -397,33 +426,45 @@ class SqlServerConnection {
   }
 
   // Constantes ODBC
+  // ignore: constant_identifier_names
   static const int SQL_HANDLE_ENV = 1;
+  // ignore: constant_identifier_names
   static const int SQL_HANDLE_DBC = 2;
+  // ignore: constant_identifier_names
   static const int SQL_HANDLE_STMT = 3;
+  // ignore: constant_identifier_names
   static const int SQL_NULL_HANDLE = 0;
+  // ignore: constant_identifier_names
   static const int SQL_SUCCESS = 0;
+  // ignore: constant_identifier_names
   static const int SQL_SUCCESS_WITH_INFO = 1;
+  // ignore: constant_identifier_names
   static const int SQL_ATTR_ODBC_VERSION = 200;
+  // ignore: constant_identifier_names
   static const int SQL_OV_ODBC3 = 3;
+  // ignore: constant_identifier_names
   static const int SQL_DRIVER_NOPROMPT = 0;
+  // ignore: constant_identifier_names
   static const int SQL_C_WCHAR = -8;
+  // ignore: constant_identifier_names
   static const int SQL_DESC_NAME = 1011;
+  // ignore: constant_identifier_names
   static const int SQL_NULL_DATA = -1;
 }
 
 // Funções ODBC via Win32
 final _odbc32 = DynamicLibrary.open('odbc32.dll');
-
+// ignore: non_constant_identifier_names
 final SQLAllocHandle = _odbc32.lookupFunction<
   Int32 Function(Int16, IntPtr, Pointer<IntPtr>),
   int Function(int, int, Pointer<IntPtr>)
 >('SQLAllocHandle');
-
+// ignore: non_constant_identifier_names
 final SQLSetEnvAttr = _odbc32.lookupFunction<
   Int32 Function(IntPtr, Int32, IntPtr, Int32),
   int Function(int, int, int, int)
 >('SQLSetEnvAttr');
-
+// ignore: non_constant_identifier_names
 final SQLDriverConnect = _odbc32.lookupFunction<
   Int32 Function(
     IntPtr,
@@ -446,17 +487,17 @@ final SQLDriverConnect = _odbc32.lookupFunction<
     int,
   )
 >('SQLDriverConnectW');
-
+// ignore: non_constant_identifier_names
 final SQLExecDirect = _odbc32.lookupFunction<
   Int32 Function(IntPtr, Pointer<Uint16>, Int32),
   int Function(int, Pointer<Uint16>, int)
 >('SQLExecDirectW');
-
+// ignore: non_constant_identifier_names
 final SQLNumResultCols = _odbc32.lookupFunction<
   Int32 Function(IntPtr, Pointer<Int16>),
   int Function(int, Pointer<Int16>)
 >('SQLNumResultCols');
-
+// ignore: non_constant_identifier_names
 final SQLColAttribute = _odbc32.lookupFunction<
   Int32 Function(
     IntPtr,
@@ -478,9 +519,10 @@ final SQLColAttribute = _odbc32.lookupFunction<
   )
 >('SQLColAttributeW');
 
+// ignore: non_constant_identifier_names
 final SQLFetch = _odbc32
     .lookupFunction<Int32 Function(IntPtr), int Function(int)>('SQLFetch');
-
+// ignore: non_constant_identifier_names
 final SQLGetData = _odbc32.lookupFunction<
   Int32 Function(
     IntPtr,
@@ -493,9 +535,11 @@ final SQLGetData = _odbc32.lookupFunction<
   int Function(int, int, int, Pointer<Uint16>, int, Pointer<IntPtr>)
 >('SQLGetData');
 
+// ignore: non_constant_identifier_names
 final SQLDisconnect = _odbc32
     .lookupFunction<Int32 Function(IntPtr), int Function(int)>('SQLDisconnect');
 
+// ignore: non_constant_identifier_names
 final SQLFreeHandle = _odbc32
     .lookupFunction<Int32 Function(Int16, IntPtr), int Function(int, int)>(
       'SQLFreeHandle',

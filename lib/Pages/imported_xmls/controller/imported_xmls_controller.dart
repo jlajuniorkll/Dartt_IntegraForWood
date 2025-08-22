@@ -6,7 +6,6 @@ import '../../../Models/xml_history.dart';
 import '../../../services/xml_importado_service.dart';
 import '../view/json_comparison_screen.dart';
 // Novos imports necessários
-import '../../../Models/outlite.dart';
 import '../../../Models/cadire2.dart';
 import '../../homescreen/repository/home_screen_repository.dart';
 // Adicionar este import
@@ -82,6 +81,7 @@ class ImportedXmlsController extends GetxController {
       final count = await _xmlService.getStatusCount();
       statusCount.value = count;
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao carregar contadores: $e');
     }
   }
@@ -179,6 +179,7 @@ class ImportedXmlsController extends GetxController {
   Future<void> enviarParaProducao(XmlImportado xmlSelecionado) async {
     // Verificar se já está processando
     if (_enviandoParaProducao) {
+      // ignore: avoid_print
       print('Envio já em andamento, ignorando clique duplo');
       return;
     }
@@ -282,8 +283,10 @@ class ImportedXmlsController extends GetxController {
         // Fazer rollback - limpar dados inseridos na cadire2
         try {
           await _homeScreenRepository.deleteCadire2();
+          // ignore: avoid_print
           print('Rollback executado: dados da cadire2 removidos');
         } catch (rollbackError) {
+          // ignore: avoid_print
           print('Erro no rollback: $rollbackError');
         }
 
@@ -336,336 +339,150 @@ class ImportedXmlsController extends GetxController {
 
   // Método para alimentar a tabela cadire2 ao enviar para produção
   Future<void> _alimentarTabelaCadire2(XmlImportado xmlSelecionado) async {
+    // ignore: avoid_print
     print('=== INÍCIO DEBUG DUPLICAÇÃO ===');
+    // ignore: avoid_print
     print('Timestamp: ${DateTime.now()}');
+    // ignore: avoid_print
     print('XML: ${xmlSelecionado.numero}');
 
     // Lista para armazenar os dados que tentamos salvar
     List<Map<String, dynamic>> dadosCadire2Tentados = [];
 
     try {
+      // ignore: avoid_print
       print(
         'Iniciando alimentação da tabela cadire2 para XML: ${xmlSelecionado.numero}',
       );
 
-      // 1. Verificar se existe jsonCadireta na revisão selecionada
-      if (xmlSelecionado.jsonCadireta == null ||
-          xmlSelecionado.jsonCadireta!.isEmpty) {
-        print('Nenhum dado cadireta encontrado para este XML');
-        return;
-      }
-
-      // 2. Processar jsonCadire2 para obter matrículas se existir
-      Map<String, String> matriculasPorFilho = {};
-      if (xmlSelecionado.jsonCadire2 != null && xmlSelecionado.jsonCadire2!.isNotEmpty) {
-        try {
-          List<dynamic> jsonCadire2List = json.decode(xmlSelecionado.jsonCadire2!);
-          print('Processando ${jsonCadire2List.length} registros do jsonCadire2 para extrair matrículas');
-          
-          for (var cadire2Item in jsonCadire2List) {
-            String cadinfinf = cadire2Item['cadinfinf'] ?? '';
-            String cadmatricula = cadire2Item['cadmatricula'] ?? '';
-            
-            if (cadinfinf.isNotEmpty && cadmatricula.isNotEmpty) {
-              matriculasPorFilho[cadinfinf] = cadmatricula;
-              print('Matrícula encontrada: $cadinfinf -> $cadmatricula');
-            }
-          }
-        } catch (e) {
-          print('Erro ao processar jsonCadire2: $e');
-        }
-      }
-
       // 2. Converter JSON da cadireta para lista de objetos
-      List<dynamic> jsonCadiretaList = json.decode(
-        xmlSelecionado.jsonCadireta!,
-      );
+      dynamic jsonCadiretaDecoded = json.decode(xmlSelecionado.jsonCadireta!);
 
-      print(
-        'Encontrados ${jsonCadiretaList.length} registros cadireta para processar',
-      );
-
-      // === NOVO DEBUG PARA VERIFICAR DUPLICAÇÃO ===
-      print('=== ANÁLISE DE DUPLICAÇÃO NO JSON ===');
-      print('JSON Cadireta completo: ${xmlSelecionado.jsonCadireta}');
-
-      // Verificar registros únicos por cadpai
-      print('\n=== VERIFICAÇÃO DE PROJETOS ÚNICOS ===');
-      Set<String> projetosUnicos = {};
-      Map<String, int> contadorProjetos = {};
-
-      for (int i = 0; i < jsonCadiretaList.length; i++) {
-        var item = jsonCadiretaList[i];
-        String cadpai = item['cadpai'] ?? '';
-        String cadfilho = item['cadfilho'] ?? '';
-        String cadpainome = item['cadpainome'] ?? '';
-        int cadcont = item['cadcont'] ?? (i + 1);
-
-        print(
-          'Registro $i: cadpai="$cadpai", cadfilho="$cadfilho", cadpainome="$cadpainome", cadcont=$cadcont',
-        );
-
-        // Contar ocorrências de cada projeto
-        contadorProjetos[cadpai] = (contadorProjetos[cadpai] ?? 0) + 1;
-
-        if (projetosUnicos.contains(cadpai)) {
-          print(
-            '  ⚠️  DUPLICADO ENCONTRADO: Projeto "$cadpai" já foi processado!',
-          );
+      List<dynamic> jsonCadiretaList;
+      if (jsonCadiretaDecoded is List) {
+        jsonCadiretaList = jsonCadiretaDecoded;
+      } else if (jsonCadiretaDecoded is Map) {
+        // Se for um Map, pode ser que contenha uma chave com a lista
+        // ou seja um único objeto que deve ser colocado em uma lista
+        if (jsonCadiretaDecoded.containsKey('data') &&
+            jsonCadiretaDecoded['data'] is List) {
+          jsonCadiretaList = jsonCadiretaDecoded['data'];
         } else {
-          projetosUnicos.add(cadpai);
-          print('  ✅ Projeto único: "$cadpai"');
+          // Se for um único objeto, coloque-o em uma lista
+          jsonCadiretaList = [jsonCadiretaDecoded];
         }
-      }
-
-      print('\n=== RESUMO DE DUPLICAÇÃO ===');
-      contadorProjetos.forEach((projeto, count) {
-        if (count > 1) {
-          print('🔴 PROJETO DUPLICADO: "$projeto" aparece $count vezes');
-        } else {
-          print('🟢 Projeto único: "$projeto" aparece $count vez');
-        }
-      });
-
-      print('Total de projetos únicos: ${projetosUnicos.length}');
-      print('Total de registros: ${jsonCadiretaList.length}');
-
-      if (projetosUnicos.length != jsonCadiretaList.length) {
-        print('🚨 CONFIRMADO: Há duplicação no JSON da cadireta!');
       } else {
-        print('✅ Não há duplicação no JSON da cadireta');
+        throw Exception(
+          'Formato de JSON cadireta inválido: esperado List ou Map, recebido ${jsonCadiretaDecoded.runtimeType}',
+        );
       }
-      print('=== FIM ANÁLISE DE DUPLICAÇÃO ===\n');
 
-      // 3. Limpar dados existentes da cadire2 APENAS para este projeto
-      Set<String> projetosProcessados = {};
-
+      // Variáveis para controlar o salvamento do PAI
+      Set<String> paisSalvos = {};
       int contador = 0;
 
-      // 4. Processar cada registro da cadireta
+      // 4. Processar cada registro da cadireta - VERSÃO REORGANIZADA
       for (var cadiretaItem in jsonCadiretaList) {
         try {
           contador++;
 
           // Extrair dados da cadireta
           int cadcont = cadiretaItem['cadcont'] ?? contador;
-          String cadpai = cadiretaItem['cadpai'] ?? '';
-          String cadfilho = cadiretaItem['cadfilho'] ?? '';
-          String cadpainome = cadiretaItem['cadpainome'] ?? '';
+          String cadpai = (cadiretaItem['cadpai'] ?? '').toString();
+          String cadfilho = (cadiretaItem['cadfilho'] ?? '').toString();
+          String cadpainome = (cadiretaItem['cadpainome'] ?? '').toString();
           int cadfase = cadiretaItem['cadfase'] ?? 40;
-          String cadfilnome = cadiretaItem['cadfilnome'] ?? '';
+          String cadfilnome = (cadiretaItem['cadfilnome'] ?? '').toString();
+          String cadgrpai = (cadiretaItem['cadgrpai'] ?? '').toString();
 
-          // === DEBUG ADICIONAL PARA CADA REGISTRO ===
-          print('\n=== PROCESSANDO REGISTRO $contador ===');
-          print('  - cadpai: "$cadpai"');
-          print('  - cadcont: $cadcont');
-          print('  - cadfilho: "$cadfilho"');
-          print('  - cadpainome: "$cadpainome"');
-          print('  - cadfase: $cadfase');
-          print('  - cadfilnome: "$cadfilnome"');
-          print(
-            '  - Projeto já processado: ${projetosProcessados.contains(cadpai)}',
-          );
-
-          // Limpar dados existentes apenas na primeira vez para cada projeto
-          if (!projetosProcessados.contains(cadpai)) {
-            await _homeScreenRepository.deleteCadire2ByProject(cadpai);
-            projetosProcessados.add(cadpai);
-            print('Dados existentes da cadire2 limpos para projeto: $cadpai');
-          }
-
-          // Extrair matrícula do cadfilnome usando a mesma regex do getItemPecas
-          String? cadmatricula;
-          if (cadfilnome.isNotEmpty) {
-            RegExp regexMatricula = RegExp(r'#M\d+/\d+/(\d+)');
-            Match? match = regexMatricula.firstMatch(cadfilnome);
-            if (match != null) {
-              String numeroMatricula = match.group(1)!;
-              // Formatar matrícula com número de fabricação se disponível
-              if (xmlSelecionado.numeroFabricacao != null) {
-                cadmatricula = formatMatricula(
-                  xmlSelecionado.numeroFabricacao!,
-                  numeroMatricula,
-                );
-              } else {
-                cadmatricula = numeroMatricula;
-              }
-              print('Matrícula extraída do cadfilnome: $cadmatricula');
-            }
-          }
-
-          // 5. SEMPRE salvar o item pai (cadinfseq = 2)
-          final cadire2Pai = Cadire2(
-            cadinfcont: cadcont,
-            cadinfprod: cadpai,
-            cadinfseq: 2,
-            cadinfdes: cadpainome,
-            cadinfinf: cadfilho,
-            cadmatricula: cadmatricula, // Adicionar a matrícula extraída
-          );
-
-          // Adicionar aos dados tentados ANTES de salvar
-          dadosCadire2Tentados.add({
-            'tipo': 'pai',
-            'cadinfcont': cadcont,
-            'cadinfprod': cadpai,
-            'cadinfseq': 2,
-            'cadinfdes': cadpainome,
-            'cadinfinf': cadfilho,
-            'cadfase': cadfase,
-            'cadfilnome': cadfilnome,
-            'cadmatricula': cadmatricula, // Adicionar também aos dados tentados
-          });
-
-          String resultadoPai = await _homeScreenRepository.saveCadire2(
-            cadire2Pai,
-            contador,
-            'cadire2',
-          );
-
-          if (resultadoPai.isNotEmpty) {
-            print('Erro ao salvar cadire2 pai: $resultadoPai');
-            throw Exception(
-              'Erro ao salvar registro pai ($cadpai): $resultadoPai',
+          if (cadgrpai == "500" && !paisSalvos.contains(cadpai)) {
+            // Salvar item PAI (cadinfseq = 2)
+            final cadire2Pai = Cadire2(
+              cadinfcont: cadcont,
+              cadinfprod: cadpai,
+              cadinfseq: 2,
+              cadinfdes: cadpainome,
+              cadinfinf: cadfilho,
             );
-          } else {
-            print('Registro cadire2 pai salvo: $cadpai');
-          }
 
-          // 6. Verificar se possui numeroFabricacao para buscar PRG1 e PRG2
-          print('=== DEBUG NUMERO FABRICACAO ===');
-          print('numeroFabricacao: "${xmlSelecionado.numeroFabricacao ?? ""}"');
-          print(
-            'numeroFabricacao preenchido: ${(xmlSelecionado.numeroFabricacao != null && xmlSelecionado.numeroFabricacao!.trim().isNotEmpty)}',
-          );
+            // Adicionar aos dados tentados ANTES de salvar
+            dadosCadire2Tentados.add({
+              'tipo': 'pai',
+              'cadinfcont': cadcont,
+              'cadinfprod': cadpai,
+              'cadinfseq': 2,
+              'cadinfdes': cadpainome,
+              'cadinfinf': cadfilho,
+              'cadfase': cadfase,
+              'cadfilnome': cadfilnome,
+            });
 
-          // Declarar variáveis
-          String nomePRG1 = '';
-          String nomePRG2 = '';
+            String resultadoPai = await _homeScreenRepository.saveCadire2(
+              cadire2Pai,
+              contador,
+              'cadire2',
+            );
 
-          // Executar apenas se numeroFabricacao estiver preenchido
-          if (xmlSelecionado.numeroFabricacao != null &&
-              xmlSelecionado.numeroFabricacao!.trim().isNotEmpty) {
-            print('✅ EXECUTANDO consulta - numeroFabricacao preenchido');
-
-            try {
-              print('🔍 CHAMANDO consultarListaCorte com:');
-              print(
-                '  - numeroFabricacao: "${xmlSelecionado.numeroFabricacao}"',
+            if (resultadoPai.isNotEmpty) {
+              // ignore: avoid_print
+              print('Erro ao salvar cadire2 pai: $resultadoPai');
+              throw Exception(
+                'Erro ao salvar registro pai ($cadpai): $resultadoPai',
               );
-              
-              // NOVA LÓGICA: Usar cadmatricula do Cadire2 se disponível
-              String matriculaParaConsulta = '';
-              if (matriculasPorFilho.containsKey(cadfilho)) {
-                matriculaParaConsulta = matriculasPorFilho[cadfilho]!;
-                print('  - Usando cadmatricula do Cadire2: "$matriculaParaConsulta"');
-              } else {
-                // Fallback: usar formatação do cadfilnome
-                matriculaParaConsulta = formatMatriculaComFabricacao(
-                  xmlSelecionado.numeroFabricacao!,
-                  cadfilnome,
-                );
-                print('  - Usando cadfilnome formatado: "$matriculaParaConsulta"');
-              }
-
-              print('  - matriculaParaConsulta: "$matriculaParaConsulta"');
-
-              // Usar numeroFabricacao do XML e matrícula do Cadire2 para buscar PRG1 e PRG2
-              Map<String, String> resultadoCorte = await consultarListaCorte(
-                xmlSelecionado.numeroFabricacao!,
-                matriculaParaConsulta,
-              );
-
-              print('📋 RESULTADO consultarListaCorte: $resultadoCorte');
-
-              nomePRG1 = resultadoCorte['PRG1'] ?? '';
-              nomePRG2 = resultadoCorte['PRG2'] ?? '';
-
-              print('  - nomePRG1: "$nomePRG1"');
-              print('  - nomePRG2: "$nomePRG2"');
-            } catch (e) {
-              print('❌ Erro ao consultar Lista_corte: $e');
+            } else {
+              // ignore: avoid_print
+              print('Registro cadire2 pai salvo: $cadpai');
             }
 
-            // 7. Salvar nomePRG1 se não estiver vazio (cadinfseq = 3)
-            if (nomePRG1.isNotEmpty) {
+            paisSalvos.add(cadpai); // Marcar como salvo
+          }
+
+          String? matriculaItemPeca = cadiretaItem['cadmatricula'];
+          if (matriculaItemPeca != null &&
+              matriculaItemPeca.trim().isNotEmpty) {
+            // Consultar ListaCorte
+            Map<String, String> resultadoCorte = await consultarListaCorte(
+              xmlSelecionado.numeroFabricacao!,
+              matriculaItemPeca,
+            );
+
+            String nomePRG1Peca = resultadoCorte['PRG1'] ?? '';
+            String nomePRG2Peca = resultadoCorte['PRG2'] ?? '';
+
+            // Salvar PRG1 se existir
+            if (nomePRG1Peca.isNotEmpty && cadfase == 10) {
               final cadire2PRG1 = Cadire2(
                 cadinfcont: cadcont,
                 cadinfprod: cadpai,
                 cadinfseq: 3,
-                cadinfdes: nomePRG1,
+                cadinfdes: nomePRG1Peca,
                 cadinfinf: cadfilho,
               );
-
-              // Adicionar aos dados tentados ANTES de salvar
-              dadosCadire2Tentados.add({
-                'tipo': 'PRG1',
-                'cadinfcont': cadcont,
-                'cadinfprod': cadpai,
-                'cadinfseq': 3,
-                'cadinfdes': nomePRG1,
-                'cadinfinf': cadfilho,
-                'cadfase': cadfase,
-                'cadfilnome': cadfilnome,
-              });
-
-              String resultadoPRG1 = await _homeScreenRepository.saveCadire2(
+              await _homeScreenRepository.saveCadire2(
                 cadire2PRG1,
                 contador,
                 'cadire2',
               );
-
-              if (resultadoPRG1.isNotEmpty) {
-                print('Erro ao salvar cadire2 PRG1: $resultadoPRG1');
-                throw Exception(
-                  'Erro ao salvar PRG1 ($nomePRG1): $resultadoPRG1',
-                );
-              } else {
-                print('Registro cadire2 PRG1 salvo: $nomePRG1');
-              }
             }
 
-            // 8. Salvar nomePRG2 se não estiver vazio (cadinfseq = 4)
-            if (nomePRG2.isNotEmpty) {
+            // Salvar PRG2 se existir
+            if (nomePRG2Peca.isNotEmpty && cadfase == 10) {
               final cadire2PRG2 = Cadire2(
                 cadinfcont: cadcont,
                 cadinfprod: cadpai,
                 cadinfseq: 4,
-                cadinfdes: nomePRG2,
+                cadinfdes: nomePRG2Peca,
                 cadinfinf: cadfilho,
               );
-
-              // Adicionar aos dados tentados ANTES de salvar
-              dadosCadire2Tentados.add({
-                'tipo': 'PRG2',
-                'cadinfcont': cadcont,
-                'cadinfprod': cadpai,
-                'cadinfseq': 4,
-                'cadinfdes': nomePRG2,
-                'cadinfinf': cadfilho,
-                'cadfase': cadfase,
-                'cadfilnome': cadfilnome,
-              });
-
-              String resultadoPRG2 = await _homeScreenRepository.saveCadire2(
+              await _homeScreenRepository.saveCadire2(
                 cadire2PRG2,
                 contador,
                 'cadire2',
               );
-
-              if (resultadoPRG2.isNotEmpty) {
-                print('Erro ao salvar cadire2 PRG2: $resultadoPRG2');
-                throw Exception(
-                  'Erro ao salvar PRG2 ($nomePRG2): $resultadoPRG2',
-                );
-              } else {
-                print('Registro cadire2 PRG2 salvo: $nomePRG2');
-              }
             }
-          } else {
-            print('❌ NÃO EXECUTANDO consulta - numeroFabricacao vazio ou nulo');
           }
         } catch (e) {
+          // ignore: avoid_print
           print('Erro ao processar registro cadireta $contador: $e');
           // Incluir dados tentados no erro
           throw Exception(
@@ -681,13 +498,15 @@ class ImportedXmlsController extends GetxController {
           xmlSelecionado.id!,
           jsonCadire2: jsonCadire2Atualizado,
         );
+        // ignore: avoid_print
         print(
           'JSON da cadire2 atualizado no XML com ${dadosCadire2Tentados.length} registros',
         );
       }
-
+      // ignore: avoid_print
       print('Alimentação da tabela cadire2 concluída com sucesso');
     } catch (e) {
+      // ignore: avoid_print
       print('Erro ao alimentar tabela cadire2: $e');
       // Se houve erro e temos dados tentados, incluir no erro
       if (dadosCadire2Tentados.isNotEmpty) {
@@ -697,26 +516,6 @@ class ImportedXmlsController extends GetxController {
       } else {
         throw Exception('Erro ao alimentar tabela cadire2: $e');
       }
-    }
-  }
-
-  // Método para consultar a tabela Lista_corte (similar ao do home_screen_controller)
-  Future<Map<String, String?>> _consultarListaCorte(
-    String matricula,
-    double espessura,
-    double comprimento,
-    double largura,
-  ) async {
-    try {
-      // Usar a função global ao invés do método do repository
-      Map<String, String> resultado = await consultarListaCorte(
-        matricula, // numeroFabricacao
-        '', // idpeca - você pode precisar ajustar este parâmetro
-      );
-      return {'nomePRG1': resultado['PRG1'], 'nomePRG2': resultado['PRG2']};
-    } catch (e) {
-      print('Erro ao consultar Lista_corte: $e');
-      return {'nomePRG1': null, 'nomePRG2': null};
     }
   }
 
@@ -747,7 +546,7 @@ class ImportedXmlsController extends GetxController {
     Get.dialog(
       AlertDialog(
         title: Text('JSONs das Tabelas - ${xml.numero}'),
-        content: Container(
+        content: SizedBox(
           width: double.maxFinite,
           height: 400,
           child: DefaultTabController(
@@ -779,33 +578,6 @@ class ImportedXmlsController extends GetxController {
           TextButton(onPressed: () => Get.back(), child: Text('Fechar')),
         ],
       ),
-    );
-  }
-
-  Widget _buildJsonSection(String title, String? jsonData) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-        ),
-        SizedBox(height: 8),
-        Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            jsonData != null && jsonData.isNotEmpty
-                ? _formatJson(jsonData)
-                : 'Nenhum dado disponível',
-            style: TextStyle(fontFamily: 'monospace', fontSize: 12),
-          ),
-        ),
-      ],
     );
   }
 
@@ -1022,14 +794,14 @@ class ImportedXmlsController extends GetxController {
     return await Get.dialog<XmlImportado>(
       AlertDialog(
         title: Text('Selecionar Revisão'),
-        content: Container(
+        content: SizedBox(
           width: double.maxFinite,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('Selecione a revisão que deseja enviar para produção:'),
               SizedBox(height: 16),
-              Container(
+              SizedBox(
                 height: 200,
                 child: ListView.builder(
                   shrinkWrap: true,
@@ -1118,10 +890,5 @@ class ImportedXmlsController extends GetxController {
         ],
       ),
     );
-  }
-
-  @override
-  void onClose() {
-    super.onClose();
   }
 }

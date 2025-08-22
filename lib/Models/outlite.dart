@@ -10,7 +10,7 @@ class Outlite {
   String fileName = "";
   List<ItemBox>? itembox;
   String codpai = "";
-  
+
   Outlite({
     this.data,
     this.numero,
@@ -39,8 +39,12 @@ class Outlite {
     return Outlite(
       data: map['data'] != null ? map['data'] as String : null,
       numero: map['numero'] != null ? map['numero'] as String : null,
-      numeroFabricacao: map['numeroFabricacao'] != null ? map['numeroFabricacao'] as String : null, // Adicionar ao fromMap
-      dataDesenho: map['dataDesenho'] != null ? map['dataDesenho'] as String : null,
+      numeroFabricacao:
+          map['numeroFabricacao'] != null
+              ? map['numeroFabricacao'] as String
+              : null, // Adicionar ao fromMap
+      dataDesenho:
+          map['dataDesenho'] != null ? map['dataDesenho'] as String : null,
       rif: map['rif'] as String,
       fileName: map['fileName'] as String,
       codpai: map['codpai'] != null ? map['codpai'] as String : "",
@@ -144,6 +148,8 @@ class ItemPecas {
   String? codcor;
   String? codpainel;
   String? codborda;
+  String? nomePRG1;
+  String? nomePRG2;
   String? trabalhoesq;
   String? trabalhodir;
   String? trabalhofre;
@@ -164,7 +170,7 @@ class ItemPecas {
   String? status;
   String? fase;
   String? matricula; // Novo campo para armazenar a matrícula
-  
+
   ItemPecas({
     this.codpeca,
     this.idpeca,
@@ -174,9 +180,8 @@ class ItemPecas {
     this.codcor,
     this.codpainel,
     this.codborda,
-    // Remover estas linhas:
-    // this.nomePRG1 = '',
-    // this.nomePRG2 = '',
+    this.nomePRG1 = '',
+    this.nomePRG2 = '',
     this.trabalhoesq,
     this.trabalhodir,
     this.trabalhofre,
@@ -209,9 +214,8 @@ class ItemPecas {
       'codcor': codcor,
       'codpainel': codpainel,
       'codborda': codborda,
-      // Remover estas linhas:
-      // 'nomePRG1': nomePRG1,
-      // 'nomePRG2': nomePRG2,
+      'nomePRG1': nomePRG1,
+      'nomePRG2': nomePRG2,
       'trabalhoesq': trabalhoesq,
       'trabalhodir': trabalhodir,
       'trabalhofre': trabalhofre,
@@ -239,19 +243,23 @@ class ItemPecas {
     return ItemPecas(
       codpeca: map['codpeca'] != null ? map['codpeca'] as String : null,
       idpeca: map['idpeca'] != null ? map['idpeca'] as String : null,
-      comprimento: map['comprimento'] != null ? map['comprimento'] as String : null,
+      comprimento:
+          map['comprimento'] != null ? map['comprimento'] as String : null,
       largura: map['largura'] != null ? map['largura'] as String : null,
       espessura: map['espessura'] != null ? map['espessura'] as String : null,
       codcor: map['codcor'] != null ? map['codcor'] as String : null,
       codpainel: map['codpainel'] != null ? map['codpainel'] as String : null,
       codborda: map['codborda'] != null ? map['codborda'] as String : null,
-      // Remover estas linhas:
-      // nomePRG1: map['nomePRG1'] as String,
-      // nomePRG2: map['nomePRG2'] as String,
-      trabalhoesq: map['trabalhoesq'] != null ? map['trabalhoesq'] as String : null,
-      trabalhodir: map['trabalhodir'] != null ? map['trabalhodir'] as String : null,
-      trabalhofre: map['trabalhofre'] != null ? map['trabalhofre'] as String : null,
-      trabalhotra: map['trabalhotra'] != null ? map['trabalhotra'] as String : null,
+      nomePRG1: map['nomePRG1'] as String,
+      nomePRG2: map['nomePRG2'] as String,
+      trabalhoesq:
+          map['trabalhoesq'] != null ? map['trabalhoesq'] as String : null,
+      trabalhodir:
+          map['trabalhodir'] != null ? map['trabalhodir'] as String : null,
+      trabalhofre:
+          map['trabalhofre'] != null ? map['trabalhofre'] as String : null,
+      trabalhotra:
+          map['trabalhotra'] != null ? map['trabalhotra'] as String : null,
       fitaesq: map['fitaesq'] != null ? map['fitaesq'] as String : null,
       fitadir: map['fitadir'] != null ? map['fitadir'] as String : null,
       fitafre: map['fitafre'] != null ? map['fitafre'] as String : null,
@@ -259,7 +267,10 @@ class ItemPecas {
       cava: map['cava'] != null ? map['cava'] as String : null,
       nbox: map['nbox'] != null ? map['nbox'] as String : null,
       qta: map['qta'] != null ? map['qta'] as String : null,
-      codbordafrente: map['codbordafrente'] != null ? map['codbordafrente'] as String : null,
+      codbordafrente:
+          map['codbordafrente'] != null
+              ? map['codbordafrente'] as String
+              : null,
       variaveis: map['variaveis'] != null ? map['variaveis'] as String : null,
       grupo: map['grupo'] != null ? map['grupo'] as String : null,
       subgrupo: map['subgrupo'] != null ? map['subgrupo'] as String : null,
@@ -267,7 +278,10 @@ class ItemPecas {
       origem: map['origem'] != null ? map['origem'] as String : null,
       status: map['status'] != null ? map['status'] as String : null,
       fase: map['fase'] != null ? map['fase'] as String : null,
-      matricula: map['matricula'] != null ? map['matricula'] as String : null, // Adicionar ao fromMap
+      matricula:
+          map['matricula'] != null
+              ? map['matricula'] as String
+              : null, // Adicionar ao fromMap
     );
   }
 
@@ -289,11 +303,11 @@ class ItemPrice {
   String? status;
   String? fase;
   String? matricula; // Novo campo para armazenar a matrícula
-  
+
   ItemPrice({
-    this.riga, 
-    this.codigo, 
-    this.des, 
+    this.riga,
+    this.codigo,
+    this.des,
     this.qtd,
     this.matricula, // Adicionar ao construtor
   });
@@ -314,7 +328,10 @@ class ItemPrice {
       codigo: map['codigo'] != null ? map['codigo'] as String : null,
       des: map['des'] != null ? map['des'] as String : null,
       qtd: map['qtd'] != null ? map['qtd'] as String : null,
-      matricula: map['matricula'] != null ? map['matricula'] as String : null, // Adicionar ao fromMap
+      matricula:
+          map['matricula'] != null
+              ? map['matricula'] as String
+              : null, // Adicionar ao fromMap
     );
   }
 

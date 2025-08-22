@@ -1,7 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-
-import 'package:dartt_integraforwood/Models/cadire2.dart';
 import 'package:dartt_integraforwood/Models/cadiredi.dart';
 import 'package:dartt_integraforwood/Models/cadireta.dart';
 import 'package:dartt_integraforwood/Models/outlite.dart';
@@ -41,30 +39,12 @@ class HomeScreenController extends GetxController {
   RxString sqlServerError = ''.obs;
 
   // Variáveis para armazenar dados enviados às tabelas PostgreSQL
+  // ignore: prefer_final_fields
   List<Map<String, dynamic>> _sentCadiretaData = [];
-  List<Map<String, dynamic>> _sentCadirediData = [];
-  List<Map<String, dynamic>> _sentCadproceData = [];
-  List<Map<String, dynamic>> _sentCadire2Data = [];
 
   // Getters para acessar os dados enviados
   List<Map<String, dynamic>> get sentCadiretaData =>
       List.unmodifiable(_sentCadiretaData);
-  List<Map<String, dynamic>> get sentCadirediData =>
-      List.unmodifiable(_sentCadirediData);
-  List<Map<String, dynamic>> get sentCadproceData =>
-      List.unmodifiable(_sentCadproceData);
-  List<Map<String, dynamic>> get sentCadire2Data =>
-      List.unmodifiable(_sentCadire2Data);
-
-  // Método para obter todos os dados enviados de uma vez
-  Map<String, List<Map<String, dynamic>>> getAllSentData() {
-    return {
-      'cadireta': sentCadiretaData,
-      'cadiredi': sentCadirediData,
-      'cadproce': sentCadproceData,
-      'cadire2': sentCadire2Data,
-    };
-  }
 
   @override
   void onInit() {
@@ -332,7 +312,7 @@ class HomeScreenController extends GetxController {
         if (partes.length > 1) {
           // Extrair matrícula do último campo
           String? matricula;
-          if (partes.length > 0) {
+          if (partes.isNotEmpty) {
             String ultimoCampo = partes.last;
             RegExp regexMatricula = RegExp(r'#M\d+/\d+/(\d+)');
             Match? match = regexMatricula.firstMatch(ultimoCampo);
@@ -361,8 +341,6 @@ class HomeScreenController extends GetxController {
             fitafre = partes[7].split('/')[6];
             fitatra = partes[7].split('/')[7];
           }
-
-
 
           itemPecas.add(
             ItemPecas(
@@ -442,19 +420,19 @@ class HomeScreenController extends GetxController {
       final jsonCadiredi = await _collectCadirediData(outlite);
       final jsonCadireta = await _collectCadiretaData(outlite);
       final jsonCadproce = await _collectCadproceData(outlite);
-      final jsonCadire2 = await _collectCadire2Data(outlite);
+      final jsonOutlite = await _collectOutliteData(outlite);
 
       final xmlImportado = XmlImportado(
         numero: outlite.numero ?? '',
-        rif: outlite.rif ?? '',
-        pai: outlite.codpai ?? '',
+        rif: outlite.rif,
+        pai: outlite.codpai,
         data: outlite.dataDesenho ?? DateTime.now().toIso8601String(),
         numeroFabricacao: '', // Será preenchido pelo usuário posteriormente
         status: StatusXml.aguardando.value,
         jsonCadiredi: jsonCadiredi,
         jsonCadireta: jsonCadireta,
         jsonCadproce: jsonCadproce,
-        jsonCadire2: jsonCadire2,
+        jsonOutlite: jsonOutlite,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -462,7 +440,6 @@ class HomeScreenController extends GetxController {
       // Tentar salvar no SQLite com verificação de duplicata
       try {
         await xmlImportadoService.insertOrUpdateXmlImportado(xmlImportado);
-        print('XML salvo no SQLite com sucesso!');
       } catch (e) {
         if (e.toString().contains('XML_ALREADY_EXISTS')) {
           // Mostrar diálogo de confirmação
@@ -510,11 +487,10 @@ class HomeScreenController extends GetxController {
             );
           }
         } else {
-          throw e;
+          rethrow;
         }
       }
     } catch (e) {
-      print('Erro ao salvar XML no SQLite: $e');
       Get.snackbar(
         'Erro',
         'Erro ao salvar XML: $e',
@@ -552,75 +528,33 @@ class HomeScreenController extends GetxController {
 
   Future<String> _collectCadirediData(Outlite outlite) async {
     try {
-      // Retornar todos os dados enviados da Cadiredi para este XML
-      // A filtragem deve ser feita de forma diferente, pois cadpai contém o código da peça
-      List<Map<String, dynamic>> filteredData = _sentCadirediData;
-
-      return jsonEncode(filteredData);
+      return jsonEncode(outlite.toMap());
     } catch (e) {
-      print('Erro ao coletar dados Cadiredi: $e');
-      return '[]';
+      return '{}';
     }
   }
 
   Future<String> _collectCadiretaData(Outlite outlite) async {
     try {
-      // Retornar dados enviados em vez de consultar o banco
-      List<Map<String, dynamic>> filteredData =
-          _sentCadiretaData
-              .where((item) => item['cadpai'] == outlite.codpai)
-              .toList();
-
-      // Converter DateTime para String para serialização JSON
-    for (var item in filteredData) {
-      if (item['cadgrav'] is DateTime) {
-        item['cadgrav'] = (item['cadgrav'] as DateTime).toIso8601String();
-      }
-      if (item['cadimpdt'] is DateTime?) {
-        item['cadimpdt'] = (item['cadimpdt'] as DateTime?)?.toIso8601String();
-      }
-      }
-
-      return jsonEncode(filteredData);
+      return jsonEncode(_sentCadiretaData);
     } catch (e) {
-      print('Erro ao coletar dados Cadireta: $e');
       return '[]';
     }
   }
 
   Future<String> _collectCadproceData(Outlite outlite) async {
     try {
-      // Retornar dados enviados (vazio por enquanto, pois não há inserção de Cadproce)
-      List<Map<String, dynamic>> filteredData =
-          _sentCadproceData
-              .where(
-                (item) =>
-                    item['cadpprod'].toString().startsWith(outlite.numero!),
-              )
-              .toList();
-
-      return jsonEncode(filteredData);
+      return jsonEncode(outlite.toMap());
     } catch (e) {
-      print('Erro ao coletar dados Cadproce: $e');
-      return '[]';
+      return '{}';
     }
   }
 
-  Future<String> _collectCadire2Data(Outlite outlite) async {
+  Future<String> _collectOutliteData(Outlite outlite) async {
     try {
-      // Retornar dados enviados (vazio por enquanto, pois não há inserção de Cadire2)
-      List<Map<String, dynamic>> filteredData =
-          _sentCadire2Data
-              .where(
-                (item) =>
-                    item['cadinfprod'].toString().startsWith(outlite.numero!),
-              )
-              .toList();
-
-      return jsonEncode(filteredData);
+      return jsonEncode(outlite.toMap());
     } catch (e) {
-      print('Erro ao coletar dados Cadire2: $e');
-      return '[]';
+      return '{}';
     }
   }
 
@@ -636,7 +570,7 @@ class HomeScreenController extends GetxController {
         if (partesDP.length > 1) {
           // Extrair matrícula do último campo
           String? matricula;
-          if (partesDP.length > 0) {
+          if (partesDP.isNotEmpty) {
             String ultimoCampo = partesDP.last;
             // Procurar por padrão #M8/71/NUMERO ou similar
             RegExp regexMatricula = RegExp(r'#M\d+/\d+/(\d+)');
@@ -668,8 +602,6 @@ class HomeScreenController extends GetxController {
   Future<void> saveCadireta(Outlite outlite) async {
     // Limpar dados anteriores
     _sentCadiretaData.clear();
-    _sentCadirediData.clear();
-    _sentCadproceData.clear();
 
     await homeScreenRepository.deleteCadireta();
     await homeScreenRepository.deleteCadiredi();
@@ -691,6 +623,7 @@ class HomeScreenController extends GetxController {
         500,
         8,
         contador,
+        'P',
       );
       Cadireta cadireta = Cadireta(
         cadcont: contador,
@@ -740,15 +673,15 @@ class HomeScreenController extends GetxController {
         caddimper: 0.00,
         cadapp: 'PDM',
       );
-      // CAPTURAR dados antes de enviar
-      _sentCadiretaData.add(cadireta.toMap());
-
       final error = await homeScreenRepository.saveCadireta(
         cadireta,
         contadorItemPeca,
         'pai',
       );
-      if (error != "") {
+      if (error == "") {
+        // Adicionar aos dados enviados apenas se salvamento foi bem-sucedido
+        _sentCadiretaData.add(cadireta.toMap());
+      } else {
         saveOKCadireta.add(error);
       }
       // Salva os dados do filho (estrutura)
@@ -768,11 +701,12 @@ class HomeScreenController extends GetxController {
             500,
             8,
             contadorItemPeca,
+            'F',
           );
         }
 
         Cadireta cadireta = Cadireta(
-          cadcont: contador,
+          cadcont: contadorItemPeca,
           cadpai: codpai,
           cadfilho: codpeca,
           cadstatus: 'N',
@@ -819,15 +753,16 @@ class HomeScreenController extends GetxController {
           caddimper: 0.00,
           cadapp: 'PDM',
         );
-        // CAPTURAR dados antes de enviar
-        _sentCadiretaData.add(cadireta.toMap());
 
         final error = await homeScreenRepository.saveCadireta(
           cadireta,
           contadorItemPeca,
           'estrutura',
         );
-        if (error != "") {
+        if (error == "") {
+          // Adicionar aos dados enviados apenas se salvamento foi bem-sucedido
+          _sentCadiretaData.add(cadireta.toMap());
+        } else {
           saveOKCadireta.add(error);
         }
 
@@ -871,88 +806,90 @@ class HomeScreenController extends GetxController {
                 'fase_padrao_consumo',
               );
               Cadireta cadireta = Cadireta(
-                cadcont: contadorItemPeca,
-                cadpai: codpeca,
-                cadfilho: nome,
-                cadstatus: 'N',
-                cadsuscad: 'IMP3CAD',
-                cadpainome: itemPeca.idpeca!,
-                cadfilnome: des,
-                cadpaium: 'UN',
-                cadfilum: um,
-                caduso: double.parse(qta),
-                cadcomp: 0,
-                cadlarg: 0,
-                cadesp: 0,
-                cadpeso: 0.0,
-                cadfase: int.tryParse(fase) ?? 40,
-                cadgrav: getDateFormated(DateTime.now()),
-                cadhora: DateFormat.Hms().format(DateTime.now()),
-                cadimpdt: getDateFormated(DateTime.now()),
-                cadimphr: '',
-                cadusuimp: '',
-                cadlocal: '',
-                cadgrpai: int.tryParse(itemPeca.grupo ?? '') ?? 400,
-                cadsgpai: int.tryParse(itemPeca.subgrupo ?? '') ?? 2,
-                cadsgrfil: int.tryParse(grupo) ?? 100, // TODO: buscar do banco
-                cadsgfil: int.tryParse(subgrupo) ?? 1, // TODO: buscar do banco
-                cadoriemb: 0,
-                cadproj: 'IMP3CAD',
-                cadarquivo: '',
-                cadcobr:
-                    fase == '20'
-                        ? getCompBord(itemPeca)
-                        : double.parse(itemPeca.comprimento!) > 0
-                        ? double.parse(itemPeca.comprimento!)
-                        : 0.00,
-                cadlabr:
-                    fase == '20'
-                        ? getLarBord(itemPeca)
-                        : double.parse(itemPeca.largura!) > 0
-                        ? double.parse(itemPeca.largura!)
-                        : 0.00,
-                cadesbr: 0.00,
-                cadclass: '',
-                cadplcor:
-                    itemPeca.largura != null &&
-                            double.parse(itemPeca.largura!) > 0
-                        ? 'S'
-                        : 'N',
-                cadusamed: 'N',
-                cadborint: 'N',
-                cadbordsup:
-                    itemPeca.fitatra != null && itemPeca.fitatra != 'N'
-                        ? 'S'
-                        : 'N',
-                cadbordinf:
-                    itemPeca.fitafre != null && itemPeca.fitafre != 'N'
-                        ? 'S'
-                        : 'N',
-                cadboresq:
-                    itemPeca.fitaesq != null && itemPeca.fitaesq != 'N'
-                        ? 'S'
-                        : 'N',
-                cadbordir:
-                    itemPeca.fitadir != null && itemPeca.fitadir != 'N'
-                        ? 'S'
-                        : 'N',
-                cadpaiarea: 0.0,
-                cadtpfil: '',
-                cadpembpr: 0,
-                cadpembpp: 0,
-                cadindter: 'N',
-                caddimper: 0.00,
-                cadapp: 'PDM',
-              );
-              // CAPTURAR dados antes de enviar
-              _sentCadiretaData.add(cadireta.toMap());
+            cadcont: contadorItemPeca,
+            cadpai: codpeca,
+            cadfilho: nome,
+            cadstatus: 'N',
+            cadsuscad: 'IMP3CAD',
+            cadpainome: itemPeca.idpeca!,
+            cadfilnome: des,
+            cadpaium: 'UN',
+            cadfilum: um,
+            caduso: double.parse(qta),
+            cadcomp: 0,
+            cadlarg: 0,
+            cadesp: 0,
+            cadpeso: 0.0,
+            cadfase: int.tryParse(fase) ?? 40,
+            cadgrav: getDateFormated(DateTime.now()),
+            cadhora: DateFormat.Hms().format(DateTime.now()),
+            cadimpdt: getDateFormated(DateTime.now()),
+            cadimphr: '',
+            cadusuimp: '',
+            cadlocal: '',
+            cadgrpai: int.tryParse(itemPeca.grupo ?? '') ?? 400,
+            cadsgpai: int.tryParse(itemPeca.subgrupo ?? '') ?? 2,
+            cadsgrfil: int.tryParse(grupo) ?? 100, // TODO: buscar do banco
+            cadsgfil: int.tryParse(subgrupo) ?? 1, // TODO: buscar do banco
+            cadoriemb: 0,
+            cadproj: 'IMP3CAD',
+            cadarquivo: '',
+            cadcobr:
+                fase == '20'
+                    ? getCompBord(itemPeca)
+                    : double.parse(itemPeca.comprimento!) > 0
+                    ? double.parse(itemPeca.comprimento!)
+                    : 0.00,
+            cadlabr:
+                fase == '20'
+                    ? getLarBord(itemPeca)
+                    : double.parse(itemPeca.largura!) > 0
+                    ? double.parse(itemPeca.largura!)
+                    : 0.00,
+            cadesbr: 0.00,
+            cadclass: '',
+            cadplcor:
+                itemPeca.largura != null &&
+                        double.parse(itemPeca.largura!) > 0
+                    ? 'S'
+                    : 'N',
+            cadusamed: 'N',
+            cadborint: 'N',
+            cadbordsup:
+                itemPeca.fitatra != null && itemPeca.fitatra != 'N'
+                    ? 'S'
+                    : 'N',
+            cadbordinf:
+                itemPeca.fitafre != null && itemPeca.fitafre != 'N'
+                    ? 'S'
+                    : 'N',
+            cadboresq:
+                itemPeca.fitaesq != null && itemPeca.fitaesq != 'N'
+                    ? 'S'
+                    : 'N',
+            cadbordir:
+                itemPeca.fitadir != null && itemPeca.fitadir != 'N'
+                    ? 'S'
+                    : 'N',
+            cadpaiarea: 0.0,
+            cadtpfil: '',
+            cadpembpr: 0,
+            cadpembpp: 0,
+            cadindter: 'N',
+            caddimper: 0.00,
+            cadapp: 'PDM',
+            cadmatricula: itemPeca.matricula,
+          );
 
               final error = await homeScreenRepository.saveCadireta(
                 cadireta,
                 contadorItemCompra,
                 'comprado',
               );
-              if (error != "") {
+              if (error == "") {
+                // Adicionar aos dados enviados apenas se salvamento foi bem-sucedido
+                _sentCadiretaData.add(cadireta.toMap());
+              } else {
                 saveOKCadireta.add(error);
               }
               Cadiredi cadiredi = Cadiredi(
@@ -978,19 +915,6 @@ class HomeScreenController extends GetxController {
                     (itemPeca.fitadir?.trim().toUpperCase() == 'S') ? 'S' : 'N',
                 caddpdes: '',
               );
-              // CAPTURAR dados antes de enviar
-              _sentCadirediData.add(cadiredi.toMap());
-
-              // Adicionar dados de cadproce e cadire2
-              _sentCadproceData.add({
-                'cadpprod': outlite.numero,
-                'cadpseq': contadorItemCompra,
-                'cadpcom': double.tryParse(itemPeca.comprimento ?? '') ?? 0.0,
-                'cadplar': double.tryParse(itemPeca.largura ?? '') ?? 0.0,
-                'cadpesp': double.tryParse(itemPeca.espessura ?? '') ?? 0.0,
-              });
-
-
 
               final errorCadiredi = await homeScreenRepository.saveCadiredi(
                 cadiredi,
@@ -1116,6 +1040,7 @@ Future<String> executaEspecialESP0019(
   int grupo,
   int subgrupo,
   int sequencia,
+  String type,
 ) async {
   String valorCodigo = '';
   // Obter o diretório ESP do SharedPreferences
@@ -1154,7 +1079,7 @@ Future<String> executaEspecialESP0019(
         }
       }
     } else {
-      return 'E_$sequencia';
+      return '$type"_"$sequencia';
     }
   } catch (e) {
     return 'C_$sequencia';

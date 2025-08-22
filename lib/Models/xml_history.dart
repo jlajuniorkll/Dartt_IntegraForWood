@@ -8,11 +8,12 @@ class XmlImportado {
   String pai;
   String data;
   String? numeroFabricacao;
-  String status; // 'aguardando', 'orcado', 'produzir', 'em_producao', 'finalizado'
+  String
+  status; // 'aguardando', 'orcado', 'produzir', 'em_producao', 'finalizado'
   String? jsonCadiredi;
   String? jsonCadireta;
   String? jsonCadproce;
-  String? jsonCadire2;
+  String? jsonOutlite;
   DateTime createdAt;
   DateTime? updatedAt;
 
@@ -28,7 +29,7 @@ class XmlImportado {
     this.jsonCadiredi,
     this.jsonCadireta,
     this.jsonCadproce,
-    this.jsonCadire2,
+    this.jsonOutlite,
     required this.createdAt,
     this.updatedAt,
   });
@@ -46,7 +47,7 @@ class XmlImportado {
       'jsonCadiredi': jsonCadiredi,
       'jsonCadireta': jsonCadireta,
       'jsonCadproce': jsonCadproce,
-      'jsonCadire2': jsonCadire2,
+      'jsonOutlite': jsonOutlite,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt?.millisecondsSinceEpoch,
     };
@@ -65,7 +66,7 @@ class XmlImportado {
       'jsonCadiredi': jsonCadiredi,
       'jsonCadireta': jsonCadireta,
       'jsonCadproce': jsonCadproce,
-      'jsonCadire2': jsonCadire2,
+      'jsonOutlite': jsonOutlite,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt?.millisecondsSinceEpoch,
     };
@@ -84,17 +85,18 @@ class XmlImportado {
       jsonCadiredi: map['jsonCadiredi'],
       jsonCadireta: map['jsonCadireta'],
       jsonCadproce: map['jsonCadproce'],
-      jsonCadire2: map['jsonCadire2'],
+      jsonOutlite: map['jsonOutlite'],
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
-      updatedAt: map['updatedAt'] != null 
-          ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'])
-          : null,
+      updatedAt:
+          map['updatedAt'] != null
+              ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'])
+              : null,
     );
   }
 
   String toJson() => json.encode(toMap());
 
-  factory XmlImportado.fromJson(String source) => 
+  factory XmlImportado.fromJson(String source) =>
       XmlImportado.fromMap(json.decode(source));
 
   XmlImportado copyWith({
@@ -109,7 +111,7 @@ class XmlImportado {
     String? jsonCadiredi,
     String? jsonCadireta,
     String? jsonCadproce,
-    String? jsonCadire2,
+    String? jsonOutlite,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -125,7 +127,7 @@ class XmlImportado {
       jsonCadiredi: jsonCadiredi ?? this.jsonCadiredi,
       jsonCadireta: jsonCadireta ?? this.jsonCadireta,
       jsonCadproce: jsonCadproce ?? this.jsonCadproce,
-      jsonCadire2: jsonCadire2 ?? this.jsonCadire2,
+      jsonOutlite: jsonOutlite ?? this.jsonOutlite,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

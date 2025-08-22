@@ -8,10 +8,10 @@ class ImportedXmlsScreen extends StatelessWidget {
   final ImportedXmlsController controller = Get.find<ImportedXmlsController>();
   final ScrollController _scrollController = ScrollController();
 
-  ImportedXmlsScreen() {
+  ImportedXmlsScreen({super.key}) {
     // Adicionar listener para scroll infinito
     _scrollController.addListener(() {
-      if (_scrollController.position.pixels >= 
+      if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
         controller.loadMoreItems();
       }
@@ -62,20 +62,24 @@ class ImportedXmlsScreen extends StatelessWidget {
               return ListView.builder(
                 controller: _scrollController,
                 padding: EdgeInsets.all(16),
-                itemCount: controller.xmlsImportados.length + 
+                itemCount:
+                    controller.xmlsImportados.length +
                     (controller.hasMoreItems.value ? 1 : 0),
                 itemBuilder: (context, index) {
                   // Se é o último item e há mais itens para carregar
                   if (index == controller.xmlsImportados.length) {
-                    return Obx(() => controller.isLoadingMore.value
-                        ? Container(
-                            padding: EdgeInsets.all(16),
-                            alignment: Alignment.center,
-                            child: CircularProgressIndicator(),
-                          )
-                        : SizedBox.shrink());
+                    return Obx(
+                      () =>
+                          controller.isLoadingMore.value
+                              ? Container(
+                                padding: EdgeInsets.all(16),
+                                alignment: Alignment.center,
+                                child: CircularProgressIndicator(),
+                              )
+                              : SizedBox.shrink(),
+                    );
                   }
-                  
+
                   final xml = controller.xmlsImportados[index];
                   return _buildXmlCard(xml);
                 },
@@ -150,6 +154,7 @@ class ImportedXmlsScreen extends StatelessWidget {
         child: Chip(
           label: Text('$label: $count'),
           backgroundColor:
+              // ignore: deprecated_member_use
               isSelected ? color.withOpacity(0.3) : color.withOpacity(0.1),
           labelStyle: TextStyle(
             color: color,
@@ -178,14 +183,16 @@ class ImportedXmlsScreen extends StatelessWidget {
                 Expanded(
                   child: Text(
                     'XML ${xml.numero} (Rev. ${xml.revisao})',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold), // Reduzido de 18 para 16
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ), // Reduzido de 18 para 16
                   ),
                 ),
                 _buildStatusBadge(xml.status),
               ],
             ),
             SizedBox(height: 8), // Reduzido de 12 para 8
-            
             // Informações principais em layout mais compacto
             Row(
               children: [
@@ -204,12 +211,16 @@ class ImportedXmlsScreen extends StatelessWidget {
                     children: [
                       _buildInfoRowCompact(
                         'Criado:',
-                        DateFormat('dd/MM/yy HH:mm').format(xml.createdAt), // Formato mais curto
+                        DateFormat(
+                          'dd/MM/yy HH:mm',
+                        ).format(xml.createdAt), // Formato mais curto
                       ),
                       if (xml.updatedAt != null)
                         _buildInfoRowCompact(
                           'Atualizado:',
-                          DateFormat('dd/MM/yy HH:mm').format(xml.updatedAt!), // Formato mais curto
+                          DateFormat(
+                            'dd/MM/yy HH:mm',
+                          ).format(xml.updatedAt!), // Formato mais curto
                         ),
                     ],
                   ),
@@ -217,15 +228,12 @@ class ImportedXmlsScreen extends StatelessWidget {
               ],
             ),
             SizedBox(height: 8), // Reduzido de 12 para 8
-            
             // Número de fabricação mais compacto
             _buildNumeroFabricacaoFieldCompact(xml),
             SizedBox(height: 8), // Reduzido de 12 para 8
-            
             // Status dropdown mais compacto
             _buildStatusDropdownCompact(xml),
             SizedBox(height: 8), // Reduzido de 16 para 8
-            
             // Botões de ação mais compactos
             _buildActionButtonsCompact(xml),
           ],
@@ -243,7 +251,7 @@ class ImportedXmlsScreen extends StatelessWidget {
           SizedBox(
             width: 60, // Reduzido de 120 para 60
             child: Text(
-              label, 
+              label,
               style: TextStyle(
                 fontWeight: FontWeight.w500,
                 fontSize: 12, // Fonte menor
@@ -286,7 +294,10 @@ class ImportedXmlsScreen extends StatelessWidget {
               hintText: 'Número de fabricação',
               hintStyle: TextStyle(fontSize: 11),
               border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Padding reduzido
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 4,
+              ), // Padding reduzido
               isDense: true, // Campo mais compacto
             ),
             onSubmitted: (value) {
@@ -306,7 +317,7 @@ class ImportedXmlsScreen extends StatelessWidget {
         SizedBox(
           width: 80, // Reduzido de 120 para 80
           child: Text(
-            'Status:', 
+            'Status:',
             style: TextStyle(
               fontWeight: FontWeight.w500,
               fontSize: 12, // Fonte menor
@@ -319,26 +330,27 @@ class ImportedXmlsScreen extends StatelessWidget {
             isExpanded: true,
             isDense: true, // Dropdown mais compacto
             style: TextStyle(fontSize: 12, color: Colors.black), // Fonte menor
-            items: StatusXml.values
-                .map((status) {
-                  if (xml.status == 'em_producao' &&
-                      status.value != 'em_producao' &&
-                      status.value != 'finalizado') {
-                    return null;
-                  }
-                  return DropdownMenuItem(
-                    value: status.value,
-                    child: Text(status.label),
-                  );
-                })
-                .where((item) => item != null)
-                .cast<DropdownMenuItem<String>>()
-                .toList(),
+            items:
+                StatusXml.values
+                    .map((status) {
+                      if (xml.status == 'em_producao' &&
+                          status.value != 'em_producao' &&
+                          status.value != 'finalizado') {
+                        return null;
+                      }
+                      return DropdownMenuItem(
+                        value: status.value,
+                        child: Text(status.label),
+                      );
+                    })
+                    .where((item) => item != null)
+                    .cast<DropdownMenuItem<String>>()
+                    .toList(),
             onChanged: (newStatus) {
               if (newStatus != null && newStatus != xml.status) {
                 controller.updateXmlStatus(xml.id!, newStatus);
               }
-            }
+            },
           ),
         ),
       ],
@@ -347,10 +359,11 @@ class ImportedXmlsScreen extends StatelessWidget {
 
   Widget _buildActionButtonsCompact(XmlImportado xml) {
     // Verificar se pode enviar para produção
-    bool podeEnviarProducao = xml.status == 'produzir' && 
-                           xml.numeroFabricacao != null && 
-                           xml.numeroFabricacao!.trim().isNotEmpty;
-    
+    bool podeEnviarProducao =
+        xml.status == 'produzir' &&
+        xml.numeroFabricacao != null &&
+        xml.numeroFabricacao!.trim().isNotEmpty;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -362,15 +375,14 @@ class ImportedXmlsScreen extends StatelessWidget {
               width: 90,
               child: ElevatedButton.icon(
                 icon: Icon(Icons.send, size: 14),
-                label: Text(
-                  'Produção',
-                  style: TextStyle(fontSize: 10),
-                ),
-                onPressed: podeEnviarProducao
-                    ? () => controller.enviarParaProducao(xml)
-                    : null,
+                label: Text('Produção', style: TextStyle(fontSize: 10)),
+                onPressed:
+                    podeEnviarProducao
+                        ? () => controller.enviarParaProducao(xml)
+                        : null,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: podeEnviarProducao ? Colors.green : Colors.grey,
+                  backgroundColor:
+                      podeEnviarProducao ? Colors.green : Colors.grey,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   minimumSize: Size(0, 28),
@@ -381,11 +393,7 @@ class ImportedXmlsScreen extends StatelessWidget {
             if (xml.status == 'produzir' && !podeEnviarProducao)
               Tooltip(
                 message: 'Número de fabricação deve estar preenchido',
-                child: Icon(
-                  Icons.info_outline,
-                  size: 16,
-                  color: Colors.orange,
-                ),
+                child: Icon(Icons.info_outline, size: 16, color: Colors.orange),
               ),
             SizedBox(width: 8), // Espaçamento entre botões do grupo esquerdo
             // Botão JSONs
@@ -393,10 +401,7 @@ class ImportedXmlsScreen extends StatelessWidget {
               width: 70,
               child: ElevatedButton.icon(
                 icon: Icon(Icons.code, size: 14),
-                label: Text(
-                  'JSONs',
-                  style: TextStyle(fontSize: 10),
-                ),
+                label: Text('JSONs', style: TextStyle(fontSize: 10)),
                 onPressed: () => controller.visualizarJsons(xml),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
@@ -442,8 +447,12 @@ class ImportedXmlsScreen extends StatelessWidget {
     }
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2), // Padding reduzido
+      padding: EdgeInsets.symmetric(
+        horizontal: 8,
+        vertical: 2,
+      ), // Padding reduzido
       decoration: BoxDecoration(
+        // ignore: deprecated_member_use
         color: color.withOpacity(0.1),
         borderRadius: BorderRadius.circular(8), // Raio reduzido
         border: Border.all(color: color),
@@ -451,7 +460,7 @@ class ImportedXmlsScreen extends StatelessWidget {
       child: Text(
         StatusXml.fromValue(status).label,
         style: TextStyle(
-          color: color, 
+          color: color,
           fontWeight: FontWeight.bold,
           fontSize: 11, // Fonte menor
         ),
