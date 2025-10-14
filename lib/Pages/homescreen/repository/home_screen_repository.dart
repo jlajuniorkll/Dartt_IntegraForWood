@@ -7,8 +7,43 @@ import 'package:dartt_integraforwood/db/postgres_connection.dart';
 import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
 import 'package:math_expressions/math_expressions.dart';
 import 'package:postgres/postgres.dart';
+import 'package:dartt_integraforwood/commom/commom_functions.dart';
 
 class HomeScreenRepository {
+  Future<String?> findProdutoByNomeEMedidas(
+    String pronome,
+    String comp,
+    String larg,
+    String esp,
+  ) async {
+    final connection = PostgresConnection().connection;
+    if (connection == null) {
+      return null;
+    }
+    try {
+      final result = await connection.execute(
+        Sql.named(
+          'SELECT produto FROM produto '
+          'WHERE pronome = @pronome '
+          'AND proficom::text = @comp '
+          'AND profilar::text = @larg '
+          'AND profiesp::text = @esp '
+          'LIMIT 1',
+        ),
+        parameters: {
+          'pronome': pronome,
+          'comp': comp,
+          'larg': larg,
+          'esp': esp,
+        },
+      );
+      if (result.isEmpty) return null;
+      return result.first.toColumnMap()['produto']?.toString();
+    } catch (e) {
+      // Se a consulta falhar, retorna null para cair no fluxo do especial
+      return null;
+    }
+  }
   Future<String> getDescricaoProduto(String codigoProduto) async {
     final connection = PostgresConnection().connection;
     final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
@@ -160,6 +195,8 @@ class HomeScreenRepository {
       'CADREAP': '',
       'CADLIGFAN': '',
     };
+    // Log da tentativa de inserção em cadireta
+    appendPedidoLog('cadireta', cadireta.toMap());
     try {
       await connection.execute(query, parameters: parameters);
       return "";
@@ -214,6 +251,8 @@ class HomeScreenRepository {
       'caddper': cadiredi.caddper,
       'caddqtd': cadiredi.caddqtd,
     };
+    // Log da tentativa de inserção em cadiredi
+    appendPedidoLog('cadiredi', cadiredi.toMap());
     try {
       await connection.execute(query, parameters: parameters);
       return "";

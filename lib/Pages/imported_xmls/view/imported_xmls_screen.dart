@@ -4,18 +4,32 @@ import 'package:intl/intl.dart';
 import '../controller/imported_xmls_controller.dart';
 import '../../../Models/xml_history.dart';
 
-class ImportedXmlsScreen extends StatelessWidget {
+class ImportedXmlsScreen extends StatefulWidget {
+  const ImportedXmlsScreen({super.key});
+
+  @override
+  State<ImportedXmlsScreen> createState() => _ImportedXmlsScreenState();
+}
+
+class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
   final ImportedXmlsController controller = Get.find<ImportedXmlsController>();
   final ScrollController _scrollController = ScrollController();
 
-  ImportedXmlsScreen({super.key}) {
-    // Adicionar listener para scroll infinito
+  @override
+  void initState() {
+    super.initState();
     _scrollController.addListener(() {
       if (_scrollController.position.pixels >=
           _scrollController.position.maxScrollExtent - 200) {
-        controller.loadMoreItems();
+        controller.loadMoreXmls();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -329,23 +343,27 @@ class ImportedXmlsScreen extends StatelessWidget {
             value: xml.status,
             isExpanded: true,
             isDense: true, // Dropdown mais compacto
-            style: TextStyle(fontSize: 12, color: Colors.black), // Fonte menor
-            items:
-                StatusXml.values
-                    .map((status) {
-                      if (xml.status == 'em_producao' &&
-                          status.value != 'em_producao' &&
-                          status.value != 'finalizado') {
-                        return null;
-                      }
-                      return DropdownMenuItem(
-                        value: status.value,
-                        child: Text(status.label),
-                      );
-                    })
-                    .where((item) => item != null)
-                    .cast<DropdownMenuItem<String>>()
-                    .toList(),
+            style: const TextStyle(fontSize: 12, color: Colors.black),
+            items: StatusXml.values
+                .map((status) {
+                  // Quando já está em produção, só permite manter ou finalizar
+                  if (xml.status == 'em_producao' &&
+                      status.value != 'em_producao' &&
+                      status.value != 'finalizado') {
+                    return null;
+                  }
+                  // Quando está finalizado, não permite voltar
+                  if (xml.status == 'finalizado' &&
+                      status.value != 'finalizado') {
+                    return null;
+                  }
+                  return DropdownMenuItem(
+                    value: status.value,
+                    child: Text(status.label),
+                  );
+                })
+                .whereType<DropdownMenuItem<String>>()
+                .toList(),
             onChanged: (newStatus) {
               if (newStatus != null && newStatus != xml.status) {
                 controller.updateXmlStatus(xml.id!, newStatus);
@@ -486,14 +504,14 @@ class ImportedXmlsScreen extends StatelessWidget {
                   vertical: 12,
                 ),
               ),
-              onChanged: (value) => controller.searchXmls(value),
+              onChanged: (value) => controller.searchQuery.value = value,
             ),
           ),
           SizedBox(width: 8),
           PopupMenuButton<String>(
             icon: Icon(Icons.sort),
             tooltip: 'Ordenar por',
-            onSelected: (value) => controller.changeSortBy(value),
+            onSelected: (value) => controller.sortBy.value = value,
             itemBuilder:
                 (context) => [
                   PopupMenuItem(

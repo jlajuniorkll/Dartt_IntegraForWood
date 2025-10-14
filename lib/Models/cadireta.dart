@@ -100,6 +100,58 @@ class Cadireta {
     this.cadmatricula, // Adicionar ao construtor
   });
 
+  Cadireta copyWith({double? caduso}) {
+    return Cadireta(
+      cadcont: cadcont,
+      cadpai: cadpai,
+      cadfilho: cadfilho,
+      cadstatus: cadstatus,
+      cadsuscad: cadsuscad,
+      cadpainome: cadpainome,
+      cadfilnome: cadfilnome,
+      cadpaium: cadpaium,
+      cadfilum: cadfilum,
+      caduso: caduso ?? this.caduso,
+      cadcomp: cadcomp,
+      cadlarg: cadlarg,
+      cadesp: cadesp,
+      cadpeso: cadpeso,
+      cadfase: cadfase,
+      cadgrav: cadgrav,
+      cadhora: cadhora,
+      cadimpdt: cadimpdt,
+      cadimphr: cadimphr,
+      cadusuimp: cadusuimp,
+      cadlocal: cadlocal,
+      cadgrpai: cadgrpai,
+      cadsgpai: cadsgpai,
+      cadsgrfil: cadsgrfil,
+      cadsgfil: cadsgfil,
+      cadoriemb: cadoriemb,
+      cadproj: cadproj,
+      cadarquivo: cadarquivo,
+      cadcobr: cadcobr,
+      cadlabr: cadlabr,
+      cadesbr: cadesbr,
+      cadclass: cadclass,
+      cadplcor: cadplcor,
+      cadusamed: cadusamed,
+      cadborint: cadborint,
+      cadbordsup: cadbordsup,
+      cadbordinf: cadbordinf,
+      cadboresq: cadboresq,
+      cadbordir: cadbordir,
+      cadpaiarea: cadpaiarea,
+      cadtpfil: cadtpfil,
+      cadpembpr: cadpembpr,
+      cadpembpp: cadpembpp,
+      cadindter: cadindter,
+      caddimper: caddimper,
+      cadapp: cadapp,
+      cadmatricula: cadmatricula,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'cadcont': cadcont,

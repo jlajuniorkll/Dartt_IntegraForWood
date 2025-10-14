@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
 
@@ -64,4 +65,58 @@ Future<Map<String, String>> consultarListaCorte(
   }
 
   return {'PRG1': '', 'PRG2': ''};
+}
+
+String? _pedidoLogFilePath;
+String? _lastTableWritten;
+
+String initPedidoLog(String numeroPedido) {
+  final baseDir = Directory('${Directory.current.path}\\log');
+  if (!baseDir.existsSync()) {
+    baseDir.createSync(recursive: true);
+  }
+  final safeNumero = numeroPedido.isNotEmpty
+      ? numeroPedido
+      : 'pedido_desconhecido_${DateTime.now().millisecondsSinceEpoch}';
+  final filePath = '${baseDir.path}\\$safeNumero.csv';
+  final file = File(filePath);
+  if (!file.existsSync()) {
+    file.createSync(recursive: true);
+  }
+  _pedidoLogFilePath = filePath;
+  _lastTableWritten = null;
+  return filePath;
+}
+
+String _csvEscape(dynamic value) {
+  final s = value?.toString() ?? '';
+  final needsQuote = s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r');
+  final escaped = s.replaceAll('"', '""');
+  return needsQuote ? '"$escaped"' : escaped;
+}
+
+void appendPedidoLog(String tabela, Map<String, dynamic> registro) {
+  try {
+    if (_pedidoLogFilePath == null) return;
+    final file = File(_pedidoLogFilePath!);
+
+    if (_lastTableWritten != tabela) {
+      final header = registro.keys.join(',');
+      file.writeAsStringSync('$tabela\n$header\n', mode: FileMode.append);
+      _lastTableWritten = tabela;
+    }
+
+    final keys = registro.keys.toList();
+    final values = keys.map((k) => _csvEscape(registro[k])).join(',');
+    file.writeAsStringSync('$values\n', mode: FileMode.append);
+  } catch (_) {}
+}
+
+Future<void> initLogsFolder() async {
+  try {
+    final dir = Directory('${Directory.current.path}\\log');
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+  } catch (_) {}
 }

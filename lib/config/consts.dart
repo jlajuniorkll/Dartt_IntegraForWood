@@ -1,4 +1,4 @@
-const version = "V1.0"; // Version of the application (info)
+const version = "V1.1.0"; // Version of the application (info)
 const versionFvm = "3.2.1"; // Version FVM (info)
 const versionFlutter = "3.29.2"; // Version Flutter (info)
 const versionDartSdk = "3.7.2"; // Version DartSDK (info)

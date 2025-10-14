@@ -187,7 +187,7 @@ class HomeScreenController extends GetxController {
       codMestre =
           parsedXml.findAllElements('CODPAIPED').isNotEmpty
               ? parsedXml.findAllElements('CODPAIPED').first.innerText
-              : 'CRIAR CÓDIGO';
+              : '6.8.0.0108';
 
       final outlite = Outlite(
         data:
@@ -400,6 +400,10 @@ class HomeScreenController extends GetxController {
   Future<void> saveDataBase({Outlite? outlite, String? xmlString}) async {
     saveCadiretaLoading.value = true;
 
+    // Inicia arquivo de log do pedido ao enviar para ForWood
+    final numeroPedido = outlite?.numero ?? '';
+    initPedidoLog(numeroPedido);
+
     if (outliteData.value != null) {
       // Salvar no banco PostgreSQL (ForWood)
       await saveCadireta(outliteData.value!);
@@ -421,6 +425,10 @@ class HomeScreenController extends GetxController {
       final jsonCadireta = await _collectCadiretaData(outlite);
       final jsonCadproce = await _collectCadproceData(outlite);
       final jsonOutlite = await _collectOutliteData(outlite);
+
+      // Registra a tentativa de salvar cadproce
+      final jsonCadproceMap = jsonDecode(jsonCadproce) as Map<String, dynamic>;
+      appendPedidoLog('cadproce', jsonCadproceMap);
 
       final xmlImportado = XmlImportado(
         numero: outlite.numero ?? '',
@@ -605,28 +613,36 @@ class HomeScreenController extends GetxController {
 
     await homeScreenRepository.deleteCadireta();
     await homeScreenRepository.deleteCadiredi();
-    int contador = 0;
-    int contadorItemPeca = 0;
-    int contadorItemCompra = 0;
+    int contadorPai = 0;
+    int contadorFilho = 0;
+    int contadorItemPeca = 1;
+    int contadorItemCompra = 2;
+    int contadorItemFilho = contadorItemPeca;
+    String codpaiOld = '';
+    String codfilhoOld = '';
 
+    List<Cadireta> listPaiPedido = [];
+    List<Cadireta> listPai = [];
+    List<Cadireta> listFilho = [];
+    List<Map<String, dynamic>> listaPaiMap = [];
     // Obter o valor de codbatismomodulo do SharedPreferences
     final prefs = await SharedPreferences.getInstance();
-    final codbatismocorte = prefs.getString('codbatismocorte') ?? '52';
+    final codbatismocorte = prefs.getString('codbatismocorte') ?? '4.1.';
 
     // Salva os dados do pai
     for (var oi in outlite.itembox!) {
-      contador = contador + 1;
+      contadorPai = contadorPai + 1;
       // var codpai = oi.codigo ?? '';
       var despai = oi.des ?? '';
       var codpai = await executaEspecialESP0019(
         codbatismocorte,
         500,
         8,
-        contador,
+        contadorPai,
         'P',
       );
-      Cadireta cadireta = Cadireta(
-        cadcont: contador,
+      Cadireta cadiretaPaiPedido = Cadireta(
+        cadcont: 1,
         cadpai: outlite.codpai,
         cadfilho: codpai,
         cadstatus: 'N',
@@ -673,38 +689,41 @@ class HomeScreenController extends GetxController {
         caddimper: 0.00,
         cadapp: 'PDM',
       );
+      listPaiPedido.add(cadiretaPaiPedido);
       final error = await homeScreenRepository.saveCadireta(
-        cadireta,
+        cadiretaPaiPedido,
         contadorItemPeca,
         'pai',
       );
       if (error == "") {
         // Adicionar aos dados enviados apenas se salvamento foi bem-sucedido
-        _sentCadiretaData.add(cadireta.toMap());
+        _sentCadiretaData.add(cadiretaPaiPedido.toMap());
       } else {
         saveOKCadireta.add(error);
       }
       // Salva os dados do filho (estrutura)
       for (var itemPeca in oi.itemPecas!) {
-        contadorItemPeca = contadorItemPeca + 1;
+        contadorFilho = contadorFilho + 1;
         String codpeca = itemPeca.codpeca!;
         if (double.parse(itemPeca.comprimento!) >= 0 &&
             double.parse(itemPeca.largura!) >= 0 &&
             double.parse(itemPeca.espessura!) >= 0) {
           // Obter o valor de codbatismomodulo do SharedPreferences
           final prefs = await SharedPreferences.getInstance();
-          final codbatismomodulo =
-              prefs.getString('codbatismomodulo') ?? '4.1.';
+          final codbatismomodulo = prefs.getString('codbatismomodulo') ?? '52';
 
           codpeca = await executaEspecialESP0019(
             codbatismomodulo,
             500,
             8,
-            contadorItemPeca,
+            contadorFilho,
             'F',
           );
         }
-
+        if (codpaiOld != codpai) {
+          contadorItemPeca = contadorItemPeca + 1;
+        }
+        codpaiOld = codpai;
         Cadireta cadireta = Cadireta(
           cadcont: contadorItemPeca,
           cadpai: codpai,
@@ -753,7 +772,8 @@ class HomeScreenController extends GetxController {
           caddimper: 0.00,
           cadapp: 'PDM',
         );
-
+        listPai.add(cadireta);
+        listaPaiMap.add({...itemPeca.toMap(), 'codpai': codpeca});
         final error = await homeScreenRepository.saveCadireta(
           cadireta,
           contadorItemPeca,
@@ -765,175 +785,201 @@ class HomeScreenController extends GetxController {
         } else {
           saveOKCadireta.add(error);
         }
-
-        final result = await getEstruturaExpandida(
-          itemPeca.codpeca!,
-          itemPeca.variaveis!,
-          itemPeca.comprimento!,
-          itemPeca.largura!,
-          itemPeca.espessura!,
+      }
+    }
+    contadorItemFilho = contadorItemPeca + 1;
+    for (var lp in listaPaiMap) {
+      final result = await getEstruturaExpandida(
+        lp['codpeca'], // certo
+        lp['variaveis'], // certo
+        lp['comprimento'], // certo
+        lp['largura'], // certo
+        lp['espessura'], // certo
+      );
+      if (result == "Erro") {
+        // saveOKCadireta.add(result);
+        // aqui não é um erro, ele somente não carrega estrutura no item pai
+      } else {
+        List<Map<String, dynamic>> estrutura = List<Map<String, dynamic>>.from(
+          json.decode(result),
         );
-        if (result == "Erro") {
-          // saveOKCadireta.add(result);
-          // aqui não é um erro, ele somente não carrega estrutura no item pai
-        } else {
-          List<Map<String, dynamic>> estrutura =
-              List<Map<String, dynamic>>.from(json.decode(result));
-
-          for (var item in estrutura) {
-            var fase = item['FASE'];
-            if (fase != '') {
-              contadorItemCompra = contadorItemCompra + 1;
-              var nome = item['CODFIG'];
-              var des = item['DESCRICAO'];
-              var qta = item['QTA'];
-              var grupo = await homeScreenRepository.getProdutoForId(
-                nome,
-                'grupo_produto',
-              );
-              var subgrupo = await homeScreenRepository.getProdutoForId(
-                nome,
-                'subgrupo_produto',
-              );
-              var um = await homeScreenRepository.getProdutoForId(
-                nome,
-                'um_produto',
-              );
-              //var origem = await homeScreenRepository.getProdutoForId(nome, 'origem_produto');
-              //var status = await homeScreenRepository.getProdutoForId(nome, 'status_produto');
-              var fase = await homeScreenRepository.getProdutoForId(
-                nome,
-                'fase_padrao_consumo',
-              );
-              Cadireta cadireta = Cadireta(
-            cadcont: contadorItemPeca,
-            cadpai: codpeca,
-            cadfilho: nome,
-            cadstatus: 'N',
-            cadsuscad: 'IMP3CAD',
-            cadpainome: itemPeca.idpeca!,
-            cadfilnome: des,
-            cadpaium: 'UN',
-            cadfilum: um,
-            caduso: double.parse(qta),
-            cadcomp: 0,
-            cadlarg: 0,
-            cadesp: 0,
-            cadpeso: 0.0,
-            cadfase: int.tryParse(fase) ?? 40,
-            cadgrav: getDateFormated(DateTime.now()),
-            cadhora: DateFormat.Hms().format(DateTime.now()),
-            cadimpdt: getDateFormated(DateTime.now()),
-            cadimphr: '',
-            cadusuimp: '',
-            cadlocal: '',
-            cadgrpai: int.tryParse(itemPeca.grupo ?? '') ?? 400,
-            cadsgpai: int.tryParse(itemPeca.subgrupo ?? '') ?? 2,
-            cadsgrfil: int.tryParse(grupo) ?? 100, // TODO: buscar do banco
-            cadsgfil: int.tryParse(subgrupo) ?? 1, // TODO: buscar do banco
-            cadoriemb: 0,
-            cadproj: 'IMP3CAD',
-            cadarquivo: '',
-            cadcobr:
-                fase == '20'
-                    ? getCompBord(itemPeca)
-                    : double.parse(itemPeca.comprimento!) > 0
-                    ? double.parse(itemPeca.comprimento!)
-                    : 0.00,
-            cadlabr:
-                fase == '20'
-                    ? getLarBord(itemPeca)
-                    : double.parse(itemPeca.largura!) > 0
-                    ? double.parse(itemPeca.largura!)
-                    : 0.00,
-            cadesbr: 0.00,
-            cadclass: '',
-            cadplcor:
-                itemPeca.largura != null &&
-                        double.parse(itemPeca.largura!) > 0
-                    ? 'S'
-                    : 'N',
-            cadusamed: 'N',
-            cadborint: 'N',
-            cadbordsup:
-                itemPeca.fitatra != null && itemPeca.fitatra != 'N'
-                    ? 'S'
-                    : 'N',
-            cadbordinf:
-                itemPeca.fitafre != null && itemPeca.fitafre != 'N'
-                    ? 'S'
-                    : 'N',
-            cadboresq:
-                itemPeca.fitaesq != null && itemPeca.fitaesq != 'N'
-                    ? 'S'
-                    : 'N',
-            cadbordir:
-                itemPeca.fitadir != null && itemPeca.fitadir != 'N'
-                    ? 'S'
-                    : 'N',
-            cadpaiarea: 0.0,
-            cadtpfil: '',
-            cadpembpr: 0,
-            cadpembpp: 0,
-            cadindter: 'N',
-            caddimper: 0.00,
-            cadapp: 'PDM',
-            cadmatricula: itemPeca.matricula,
-          );
-
-              final error = await homeScreenRepository.saveCadireta(
-                cadireta,
-                contadorItemCompra,
-                'comprado',
-              );
-              if (error == "") {
-                // Adicionar aos dados enviados apenas se salvamento foi bem-sucedido
-                _sentCadiretaData.add(cadireta.toMap());
-              } else {
-                saveOKCadireta.add(error);
-              }
-              Cadiredi cadiredi = Cadiredi(
-                cadcont: contadorItemPeca,
-                cadpai: codpeca,
-                cadfilho: nome,
-                caddseq: 0,
-                caddcom: double.tryParse(itemPeca.comprimento ?? '') ?? 0.0,
-                caddlar: double.tryParse(itemPeca.largura ?? '') ?? 0.0,
-                caddesp: double.tryParse(itemPeca.espessura ?? '') ?? 0.0,
-                caddcob: double.tryParse(itemPeca.comprimento ?? '') ?? 0.0,
-                caddlab: double.tryParse(itemPeca.largura ?? '') ?? 0.0,
-                caddesb: double.tryParse(itemPeca.espessura ?? '') ?? 0.0,
-                cadcor: fase == "40" ? "S" : "N",
-                caddbint: "N",
-                caddbsup:
-                    (itemPeca.fitatra?.trim().toUpperCase() == 'S') ? 'S' : 'N',
-                caddbinf:
-                    (itemPeca.fitafre?.trim().toUpperCase() == 'S') ? 'S' : 'N',
-                caddbesq:
-                    (itemPeca.fitaesq?.trim().toUpperCase() == 'S') ? 'S' : 'N',
-                caddbdir:
-                    (itemPeca.fitadir?.trim().toUpperCase() == 'S') ? 'S' : 'N',
-                caddpdes: '',
-              );
-
-              final errorCadiredi = await homeScreenRepository.saveCadiredi(
-                cadiredi,
-                contadorItemCompra,
-                'cadiredi',
-              );
-              if (errorCadiredi != "") {
-                saveOKCadireta.add(errorCadiredi);
-              }
+        for (var item in estrutura) {
+          var fase = item['FASE'];
+          if (fase != '') {
+            contadorItemCompra = contadorItemCompra + 1;
+            if (codfilhoOld != lp['codpai']) {
+              contadorItemFilho = contadorItemFilho + 1;
             }
+            var nome = item['CODFIG'];
+            var des = item['DESCRICAO'];
+            var qta = item['QTA'];
+            var grupo = await homeScreenRepository.getProdutoForId(
+              nome,
+              'grupo_produto',
+            );
+            var subgrupo = await homeScreenRepository.getProdutoForId(
+              nome,
+              'subgrupo_produto',
+            );
+            var um = await homeScreenRepository.getProdutoForId(
+              nome,
+              'um_produto',
+            );
+            //var origem = await homeScreenRepository.getProdutoForId(nome, 'origem_produto');
+            //var status = await homeScreenRepository.getProdutoForId(nome, 'status_produto');
+            var fase = await homeScreenRepository.getProdutoForId(
+              nome,
+              'fase_padrao_consumo',
+            );
+            codfilhoOld = lp['codpai'];
+            final items = ItemPecas.fromMap(lp);
+            Cadireta cadireta = Cadireta(
+              cadcont: contadorItemFilho,
+              cadpai: lp['codpai'],
+              cadfilho: nome,
+              cadstatus: 'N',
+              cadsuscad: 'IMP3CAD',
+              cadpainome: lp['idpeca'],
+              cadfilnome: des,
+              cadpaium: 'UN',
+              cadfilum: um,
+              caduso: double.parse(qta),
+              cadcomp: 0,
+              cadlarg: 0,
+              cadesp: 0,
+              cadpeso: 0.0,
+              cadfase: int.tryParse(fase) ?? 40,
+              cadgrav: getDateFormated(DateTime.now()),
+              cadhora: DateFormat.Hms().format(DateTime.now()),
+              cadimpdt: getDateFormated(DateTime.now()),
+              cadimphr: '',
+              cadusuimp: '',
+              cadlocal: '',
+              cadgrpai: int.tryParse(lp['grupo'] ?? '') ?? 400,
+              cadsgpai: int.tryParse(lp['subgrupo'] ?? '') ?? 2,
+              cadsgrfil: int.tryParse(grupo) ?? 100, // TODO: buscar do banco
+              cadsgfil: int.tryParse(subgrupo) ?? 1, // TODO: buscar do banco
+              cadoriemb: 0,
+              cadproj: 'IMP3CAD',
+              cadarquivo: '',
+              cadcobr:
+                  fase == '20'
+                      ? getCompBord(items)
+                      : double.parse(lp['comprimento']) > 0
+                      ? double.parse(lp['comprimento'])
+                      : 0.00,
+              cadlabr:
+                  fase == '20'
+                      ? getLarBord(items)
+                      : double.parse(lp['largura']) > 0
+                      ? double.parse(lp['largura'])
+                      : 0.00,
+              cadesbr: 0.00,
+              cadclass: '',
+              cadplcor:
+                  lp['largura'] != null && double.parse(lp['largura']) > 0
+                      ? 'S'
+                      : 'N',
+              cadusamed: 'N',
+              cadborint: 'N',
+              cadbordsup:
+                  lp['fitatra'] != null && lp['fitatra'] != 'N' ? 'S' : 'N',
+              cadbordinf:
+                  lp['fitafre'] != null && lp['fitafre'] != 'N' ? 'S' : 'N',
+              cadboresq:
+                  lp['fitaesq'] != null && lp['fitaesq'] != 'N' ? 'S' : 'N',
+              cadbordir:
+                  lp['fitadir'] != null && lp['fitadir'] != 'N' ? 'S' : 'N',
+              cadpaiarea: 0.0,
+              cadtpfil: '',
+              cadpembpr: 0,
+              cadpembpp: 0,
+              cadindter: 'N',
+              caddimper: 0.00,
+              cadapp: 'PDM',
+              cadmatricula: lp['matricula'],
+            );
+            listFilho.add(cadireta);
           }
         }
       }
     }
+
+    ///// AGRUPA OS ITENS FILHOS PARA EVITAR DUPLICIDADE /////
+
+    // Chama a função que agrupa por cadcont, cadpai e cadfilho, somando caduso
+    final List<Cadireta> cadiretaFilhosAgrupados = agruparCadiretas(listFilho);
+
+    // Agora salva apenas os registros agrupados
+    for (final cadireta in cadiretaFilhosAgrupados) {
+      final error = await homeScreenRepository.saveCadireta(
+        cadireta,
+        contadorItemCompra,
+        'comprado',
+      );
+
+      if (error == "") {
+        _sentCadiretaData.add(cadireta.toMap());
+      } else {
+        saveOKCadireta.add(error);
+      }
+
+      Cadiredi cadiredi = Cadiredi(
+        cadcont: cadireta.cadcont,
+        cadpai: cadireta.cadpai,
+        cadfilho: cadireta.cadfilho,
+        caddseq: 0,
+        caddcom: cadireta.cadcomp,
+        caddlar: cadireta.cadlarg,
+        caddesp: cadireta.cadesp,
+        caddcob: cadireta.cadcobr,
+        caddlab: cadireta.cadlabr,
+        caddesb: cadireta.cadesbr,
+        cadcor: cadireta.cadfase == 40 ? "S" : "N",
+        caddbint: "N",
+        caddbsup: cadireta.cadbordsup,
+        caddbinf: cadireta.cadbordinf,
+        caddbesq: cadireta.cadboresq,
+        caddbdir: cadireta.cadbordir,
+        caddpdes: '',
+      );
+
+      final errorCadiredi = await homeScreenRepository.saveCadiredi(
+        cadiredi,
+        contadorItemCompra,
+        'cadiredi',
+      );
+
+      if (errorCadiredi != "") {
+        saveOKCadireta.add(errorCadiredi);
+      }
+    }
+
+    // List<Cadireta> listaCompleta = [...listPaiPedido, ...listPai, ...listFilho];
+
     if (saveOKCadireta.isNotEmpty) {
       cadiretaSuccess.value = false;
     } else {
       cadiretaSuccess.value = true;
     }
+  }
+
+  List<Cadireta> agruparCadiretas(List<Cadireta> lista) {
+    final Map<String, Cadireta> agrupados = {};
+
+    for (final item in lista) {
+      final chave = '${item.cadcont}_${item.cadpai}_${item.cadfilho}';
+
+      if (agrupados.containsKey(chave)) {
+        // Atualiza somando o caduso
+        final atual = agrupados[chave]!;
+        agrupados[chave] = atual.copyWith(caduso: atual.caduso + item.caduso);
+      } else {
+        agrupados[chave] = item;
+      }
+    }
+
+    return agrupados.values.toList();
   }
 
   Future<String> getEstruturaExpandida(
@@ -956,8 +1002,6 @@ class HomeScreenController extends GetxController {
       return result;
     }
   }
-
-  void sync3Cad() {}
 
   Future<void> generateCompradosReport() async {
     await pdfService.printCompradosReport(outliteData.value!);
@@ -997,6 +1041,8 @@ class HomeScreenController extends GetxController {
       isGeneratingReport.value = false;
     }
   }
+
+  void sync3Cad() {}
 }
 
 getLarBord(ItemPecas itemPeca) {
@@ -1078,11 +1124,17 @@ Future<String> executaEspecialESP0019(
           break;
         }
       }
+      // Se o arquivo existe mas não retornou código, usa a sequência da linha
+      if (valorCodigo.isEmpty) {
+        return '$type"_"$sequencia';
+      }
     } else {
+      // Se não gerou arquivo, usa a sequência da linha
       return '$type"_"$sequencia';
     }
   } catch (e) {
-    return 'C_$sequencia';
+    // Em erro, usa a sequência da linha onde ocorreu o problema, não o codcont
+    return '$type"_"$sequencia';
   }
 
   return valorCodigo;

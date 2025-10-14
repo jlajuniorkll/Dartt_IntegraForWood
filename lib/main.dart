@@ -1,4 +1,5 @@
-import 'package:dartt_integraforwood/routes/app_routes.dart';
+import 'package:dartt_integraforwood/Routes/app_routes.dart';
+import 'package:dartt_integraforwood/commom/commom_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'dart:io';
@@ -13,6 +14,9 @@ void main() async {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
+  
+  // Garante pasta de logs ao iniciar o app
+  await initLogsFolder();
   
   runApp(MyApp());
 }
