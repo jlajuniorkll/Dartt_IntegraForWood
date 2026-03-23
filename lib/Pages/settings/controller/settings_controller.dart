@@ -5,7 +5,7 @@ import 'package:dartt_integraforwood/Pages/homescreen/controller/home_screen_con
 
 class SettingsController extends GetxController {
   // Variáveis de Informação
-  final version = 'V1.0'.obs;
+  final version = 'V1.1.0'.obs;
   final versionFvm = '3.2.1'.obs;
   final versionFlutter = '3.29.2'.obs;
   final versionDartSdk = '3.7.2'.obs;
