@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dartt_integraforwood/debug_agent_log.dart';
 import 'package:dartt_integraforwood/Models/outlite.dart';
 import 'package:dartt_integraforwood/Pages/common/widget_loader.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/controller/home_screen_controller.dart';
@@ -52,6 +53,33 @@ class DetailsScreen extends StatelessWidget {
                       title: Text('Configurações'),
                       onTap: () {
                         Get.toNamed(PageRoutes.settings);
+                      },
+                    ),
+                  ),
+                  PopupMenuItem(
+                    child: ListTile(
+                      leading: Icon(Icons.article_outlined),
+                      title: Text('Log do sistema'),
+                      onTap: () {
+                        // #region agent log
+                        agentDebugLog(
+                          location: 'details_screen.dart:LogMenu',
+                          message: 'tap Log: pop menu then toNamed',
+                          hypothesisId: 'H1',
+                          runId: 'post-fix',
+                        );
+                        // #endregion
+                        // Fechar o overlay do menu antes de navegar — pop após toNamed removia a rota do log.
+                        Navigator.of(context).pop();
+                        Get.toNamed(PageRoutes.systemLog);
+                        // #region agent log
+                        agentDebugLog(
+                          location: 'details_screen.dart:LogMenu',
+                          message: 'after toNamed',
+                          hypothesisId: 'H1',
+                          runId: 'post-fix',
+                        );
+                        // #endregion
                       },
                     ),
                   ),
@@ -178,8 +206,15 @@ class DetailsScreen extends StatelessWidget {
                             controller.outliteData.value == null
                                 ? null
                                 : () async {
+                                  final o = controller.outliteData.value!;
+                                  final ok =
+                                      await controller
+                                          .confirmarEnvioParaForWoodSeNecessario(
+                                            o,
+                                          );
+                                  if (!ok) return;
                                   controller.saveDataBase(
-                                    outlite: controller.outliteData.value!,
+                                    outlite: o,
                                     xmlString: xmlString,
                                   );
                                 },
@@ -357,6 +392,8 @@ class DetailsScreen extends StatelessWidget {
                             );
                             final itemBox = outlite.itembox![index];
                             final hasErros = itemBox.totalErrosCount > 0;
+                            final hasPend =
+                                itemBox.totalPendentesCadastroCount > 0;
                             return Card(
                               child: Container(
                                 decoration: BoxDecoration(
@@ -403,6 +440,33 @@ class DetailsScreen extends StatelessWidget {
                                                 ),
                                               ),
                                             ),
+                                          if (hasPend) ...[
+                                            if (hasErros) SizedBox(width: 6),
+                                            Tooltip(
+                                              message:
+                                                  'Itens existentes no SQL Server; cadastre no PostgreSQL/ForWood',
+                                              child: Chip(
+                                                avatar: Icon(
+                                                  Icons.edit_note_rounded,
+                                                  color: Colors.green.shade800,
+                                                  size: 18,
+                                                ),
+                                                label: Text(
+                                                  '${itemBox.totalPendentesCadastroCount} Atualizar',
+                                                  style: TextStyle(
+                                                    color: Colors.green.shade800,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                backgroundColor:
+                                                    Colors.green.shade100,
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 4,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),
@@ -537,7 +601,9 @@ class DetailsScreen extends StatelessWidget {
                                           decoration: BoxDecoration(
                                             color: itemPrice.hasErroDescricao
                                                 ? Colors.red.shade100
-                                                : Colors.white,
+                                                : itemPrice.precisaCadastroForWoodUi
+                                                    ? Colors.green.shade50
+                                                    : Colors.white,
                                           ),
                                           children: <Widget>[
                                             Padding(
@@ -552,7 +618,39 @@ class DetailsScreen extends StatelessWidget {
                                               padding: const EdgeInsets.all(
                                                 8.0,
                                               ),
-                                              child: Text(itemPrice.des ?? ''),
+                                              child:
+                                                  itemPrice.precisaCadastroForWoodUi
+                                                      ? Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(
+                                                              '${itemPrice.codigo ?? ''} — ${itemPrice.descricaoSqlServer ?? itemPrice.des ?? ''}',
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                              ),
+                                                            ),
+                                                            Text(
+                                                              'Atualizar',
+                                                              style: TextStyle(
+                                                                color: Colors
+                                                                    .green
+                                                                    .shade800,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 12,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        )
+                                                      : Text(
+                                                          itemPrice.des ?? '',
+                                                        ),
                                             ),
                                             Padding(
                                               padding: const EdgeInsets.all(
@@ -704,7 +802,9 @@ class DetailsScreen extends StatelessWidget {
                                           decoration: BoxDecoration(
                                             color: itemPecas.hasErroDescricao
                                                 ? Colors.red.shade100
-                                                : Colors.white,
+                                                : itemPecas.precisaCadastroForWoodUi
+                                                    ? Colors.green.shade50
+                                                    : Colors.white,
                                           ),
                                           children: <Widget>[
                                             Padding(
@@ -719,9 +819,40 @@ class DetailsScreen extends StatelessWidget {
                                               padding: const EdgeInsets.all(
                                                 8.0,
                                               ),
-                                              child: Text(
-                                                itemPecas.idpeca ?? '',
-                                              ),
+                                              child:
+                                                  itemPecas.precisaCadastroForWoodUi
+                                                      ? Column(
+                                                          crossAxisAlignment:
+                                                              CrossAxisAlignment
+                                                                  .start,
+                                                          children: [
+                                                            Text(
+                                                              '${itemPecas.codpeca ?? ''} — ${itemPecas.descricaoSqlServer ?? itemPecas.idpeca ?? ''}',
+                                                              style:
+                                                                  const TextStyle(
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w500,
+                                                              ),
+                                                            ),
+                                                            Text(
+                                                              'Atualizar',
+                                                              style: TextStyle(
+                                                                color: Colors
+                                                                    .green
+                                                                    .shade800,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .bold,
+                                                                fontSize: 12,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        )
+                                                      : Text(
+                                                          itemPecas.idpeca ??
+                                                              '',
+                                                        ),
                                             ),
                                             Padding(
                                               padding: const EdgeInsets.all(

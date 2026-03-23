@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:dartt_integraforwood/Models/cadire2.dart';
+import 'package:dartt_integraforwood/Models/produto_resolve_result.dart';
 import 'package:dartt_integraforwood/Models/cadiredi.dart';
 import 'package:dartt_integraforwood/Models/cadireta.dart';
 import 'package:dartt_integraforwood/db/postgres_connection.dart';
@@ -8,6 +9,21 @@ import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
 import 'package:math_expressions/math_expressions.dart';
 import 'package:postgres/postgres.dart';
 import 'package:dartt_integraforwood/commom/commom_functions.dart';
+
+/// Uma linha em `estrutur` + dimensões do `produto` filho (multiplicidade = quantidade).
+class EstruturFilhoDetalhe {
+  final String estfilho;
+  final String comprimento;
+  final String largura;
+  final String espessura;
+
+  const EstruturFilhoDetalhe({
+    required this.estfilho,
+    required this.comprimento,
+    required this.largura,
+    required this.espessura,
+  });
+}
 
 class HomeScreenRepository {
   Future<String?> findProdutoByNomeEMedidas(
@@ -44,29 +60,163 @@ class HomeScreenRepository {
       return null;
     }
   }
-  /// Returns list of child codes (estfilho) for a given parent (estproduto) from estrutur table.
-  Future<List<String>> getFilhosFromEstrutur(String estproduto) async {
-    final connection = PostgresConnection().connection;
 
-    if (connection == null) {
-      return [];
+  /// Descrição em `articoli` (SQL Server) pelo código.
+  Future<String?> getDescricaoArticoli(String cod) async {
+    try {
+      final mssql = SqlServerConnection.getInstance().mssqlConnection;
+      final escaped = cod.replaceAll("'", "''");
+      final query = "SELECT des FROM articoli WHERE cod = '$escaped'";
+      final rawResult = await mssql.getData(query);
+      final parsed = jsonDecode(rawResult) as List;
+      if (parsed.isNotEmpty) {
+        return parsed.first['des']?.toString();
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Descrição em `vw_produto` pelo código PostgreSQL.
+  Future<String?> getDescricaoVwProduto(String codigoPg) async {
+    final connection = PostgresConnection().connection;
+    if (connection == null) return null;
+    try {
+      final result = await connection.execute(
+        Sql.named(
+          'SELECT descricao_produto FROM vw_produto WHERE codigo_produto = @codigo',
+        ),
+        parameters: {'codigo': codigoPg},
+      );
+      if (result.isEmpty) return null;
+      return result.first.toColumnMap()['descricao_produto']?.toString();
+    } catch (_) {
+      return null;
     }
+  }
+
+  /// Resolve código/descrição para peça com dimensões (DISTINTAT).
+  Future<ProdutoResolveResult> resolveProdutoComDimensoes(
+    String codpeca,
+    String comp,
+    String larg,
+    String esp,
+  ) async {
+    final connection = PostgresConnection().connection;
+    if (connection == null) {
+      return const ProdutoResolveResult(idpeca: 'Erro: Conexão não iniciada');
+    }
+
+    final descPgDireto = await getDescricaoVwProduto(codpeca);
+    if (descPgDireto != null) {
+      return ProdutoResolveResult(
+        idpeca: descPgDireto,
+        codigoProdutoPostgres: codpeca,
+      );
+    }
+
+    final desSql = await getDescricaoArticoli(codpeca);
+    if (desSql == null || desSql.trim().isEmpty) {
+      return const ProdutoResolveResult(idpeca: 'Erro: Produto não cadastrado');
+    }
+    final pronome = desSql.trim();
+
+    final pgCod = await findProdutoByNomeEMedidas(pronome, comp, larg, esp);
+    if (pgCod != null) {
+      final d = await getDescricaoVwProduto(pgCod) ?? pronome;
+      return ProdutoResolveResult(
+        idpeca: d,
+        codigoProdutoPostgres: pgCod,
+      );
+    }
+
+    return ProdutoResolveResult(
+      idpeca: pronome,
+      precisaCadastroForWood: true,
+      descricaoSqlServer: pronome,
+    );
+  }
+
+  /// Resolve item comprado (DETTPREZZO) — somente PostgreSQL (`vw_produto`).
+  /// Itens fabricados (DISTINTAT) continuam usando [resolveProdutoComDimensoes], que pode consultar o SQL Server.
+  Future<ProdutoResolveResult> resolveProdutoCodigoCompra(String codigo) async {
+    final connection = PostgresConnection().connection;
+    if (connection == null) {
+      return const ProdutoResolveResult(idpeca: 'Erro: Conexão não iniciada');
+    }
+
+    final descPgDireto = await getDescricaoVwProduto(codigo);
+    if (descPgDireto != null) {
+      return ProdutoResolveResult(
+        idpeca: descPgDireto,
+        codigoProdutoPostgres: codigo,
+      );
+    }
+
+    return const ProdutoResolveResult(idpeca: 'Erro: Produto não cadastrado');
+  }
+
+  /// Código `estproduto` em PostgreSQL para consultar `estrutur`.
+  Future<String?> resolveEstprodutoParaEstrutur({
+    required String? codigoRiga,
+    required String? desModulo,
+    required String? l,
+    required String? a,
+    required String? p,
+  }) async {
+    final c = (codigoRiga ?? '').trim();
+    if (c.isNotEmpty && await estprodutoExisteEmEstrutur(c)) return c;
+    final des = (desModulo ?? '').trim();
+    if (des.isEmpty) return null;
+    final pg = await findProdutoByNomeEMedidas(
+      des,
+      l ?? '',
+      a ?? '',
+      p ?? '',
+    );
+    if (pg != null && await estprodutoExisteEmEstrutur(pg)) return pg;
+    return null;
+  }
+
+  /// Filhos com dimensões; cada linha = unidade de quantidade na estrutura.
+  Future<List<EstruturFilhoDetalhe>> getFilhosEstruturDetalhado(
+    String estproduto,
+  ) async {
+    final connection = PostgresConnection().connection;
+    if (connection == null) return [];
 
     try {
       final result = await connection.execute(
         Sql.named(
-          'SELECT estfilho FROM estrutur WHERE estproduto = @estproduto',
+          'SELECT e.estfilho, p_filho.proficom::text AS comp, '
+          'p_filho.profilar::text AS larg, p_filho.profiesp::text AS esp '
+          'FROM estrutur e '
+          'INNER JOIN produto p_filho ON p_filho.produto = e.estfilho '
+          'WHERE e.estproduto = @estproduto',
         ),
         parameters: {'estproduto': estproduto},
       );
 
       return result
-          .map((row) => row.toColumnMap()['estfilho']?.toString() ?? '')
-          .where((s) => s.isNotEmpty)
+          .map((row) {
+            final m = row.toColumnMap();
+            return EstruturFilhoDetalhe(
+              estfilho: m['estfilho']?.toString() ?? '',
+              comprimento: m['comp']?.toString() ?? '0',
+              largura: m['larg']?.toString() ?? '0',
+              espessura: m['esp']?.toString() ?? '0',
+            );
+          })
+          .where((e) => e.estfilho.isNotEmpty)
           .toList();
     } catch (e) {
       return [];
     }
+  }
+
+  /// Lista de códigos filhos (compatibilidade).
+  Future<List<String>> getFilhosFromEstrutur(String estproduto) async {
+    final det = await getFilhosEstruturDetalhado(estproduto);
+    return det.map((e) => e.estfilho).toList();
   }
 
   /// Returns true if estproduto exists in estrutur table.
@@ -108,21 +258,6 @@ class HomeScreenRepository {
     if (result.isNotEmpty) {
       final descricao = result.first.toColumnMap()['descricao_produto'];
       return descricao?.toString() ?? 'Erro: Sem descrição';
-    }
-
-    // Fallback: buscar no SQL Server (articoli)
-    try {
-      final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
-      final escaped = codigoProduto.replaceAll("'", "''");
-      final query = "SELECT des FROM articoli WHERE cod = '$escaped'";
-      final rawResult = await mssqlConnection.getData(query);
-      final parsed = jsonDecode(rawResult) as List;
-      if (parsed.isNotEmpty) {
-        final des = parsed.first['des']?.toString();
-        return des ?? 'Erro: Sem descrição';
-      }
-    } catch (_) {
-      // Ignora erro de SQL Server, retorna mensagem padrão
     }
 
     return 'Erro: Produto não cadastrado';
@@ -327,6 +462,43 @@ class HomeScreenRepository {
     } catch (e) {
       return 'Erro ao deletar cadire2: $e';
     }
+  }
+
+  /// Maiores `cadinfseq` e `cadinfcont` já existentes para [cadinfprod] (inserção apenas, sem apagar).
+  Future<({int seq, int cont})> getCadire2MaxCountersForProd(
+    String cadinfprod,
+  ) async {
+    final connection = PostgresConnection().connection;
+    if (connection == null) {
+      return (seq: 0, cont: 0);
+    }
+    try {
+      final result = await connection.execute(
+        Sql.named(
+          'SELECT COALESCE(MAX(cadinfseq), 0) AS mseq, '
+          'COALESCE(MAX(cadinfcont), 0) AS mcont '
+          'FROM cadire2 WHERE cadinfprod = @cadinfprod',
+        ),
+        parameters: {'cadinfprod': cadinfprod},
+      );
+      if (result.isEmpty) {
+        return (seq: 0, cont: 0);
+      }
+      final m = result.first.toColumnMap();
+      return (
+        seq: _parseSqlInt(m['mseq']),
+        cont: _parseSqlInt(m['mcont']),
+      );
+    } catch (_) {
+      return (seq: 0, cont: 0);
+    }
+  }
+
+  int _parseSqlInt(dynamic v) {
+    if (v == null) return 0;
+    if (v is int) return v;
+    if (v is BigInt) return v.toInt();
+    return int.tryParse(v.toString()) ?? 0;
   }
 
   // Novo método para deletar apenas registros de um projeto específico

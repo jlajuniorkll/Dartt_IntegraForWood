@@ -1,4 +1,6 @@
+import 'package:dartt_integraforwood/debug_agent_log.dart';
 import 'package:dartt_integraforwood/Pages/settings/controller/settings_controller.dart';
+import 'package:dartt_integraforwood/Routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
@@ -95,6 +97,25 @@ class SettingsScreen extends StatelessWidget {
                 child: Text('Salvar'),
               ),
               SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.article_outlined),
+                title: const Text('Log do sistema'),
+                subtitle: const Text(
+                  'Eventos, erros e diagnóstico da sessão',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  // #region agent log
+                  agentDebugLog(
+                    location: 'settings_screen.dart:LogTile',
+                    message: 'settings ListTile tap system log',
+                    hypothesisId: 'H1',
+                  );
+                  // #endregion
+                  Get.toNamed(PageRoutes.systemLog);
+                },
+              ),
+              SizedBox(height: 12),
               Text(
                 'Informações',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),

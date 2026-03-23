@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/controller/home_screen_controller.dart';
+import 'package:dartt_integraforwood/services/app_logger.dart';
 
 class SettingsController extends GetxController {
   // Variáveis de Informação
@@ -119,6 +120,7 @@ class SettingsController extends GetxController {
       // Validar conexões em background (sem bloquear a UI)
       _validateConnectionsInBackground();
     } catch (e) {
+      AppLogger.e('Settings', 'Erro ao salvar configurações', error: e);
       Get.snackbar(
         'Erro',
         'Erro ao salvar configurações: $e',
@@ -147,8 +149,7 @@ class SettingsController extends GetxController {
               Duration(seconds: 10),
             );
           } catch (e) {
-            // ignore: avoid_print
-            print('Timeout ou erro na conexão PostgreSQL: $e');
+            AppLogger.w('Settings', 'Timeout ou erro na conexão PostgreSQL: $e');
           }
         }),
         Future.delayed(Duration.zero, () async {
@@ -157,8 +158,7 @@ class SettingsController extends GetxController {
               Duration(seconds: 10),
             );
           } catch (e) {
-            // ignore: avoid_print
-            print('Timeout ou erro na conexão SQL Server: $e');
+            AppLogger.w('Settings', 'Timeout ou erro na conexão SQL Server: $e');
           }
         }),
       ]).timeout(Duration(seconds: 15));
@@ -185,9 +185,7 @@ class SettingsController extends GetxController {
         }
       }
     } catch (e) {
-      // Falha silenciosa na validação em background
-      // ignore: avoid_print
-      print('Erro na validação em background: $e');
+      AppLogger.w('Settings', 'Erro na validação em background: $e');
     }
   }
 }

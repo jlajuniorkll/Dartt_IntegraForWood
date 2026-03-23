@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:dartt_integraforwood/services/app_logger.dart';
+
 import '../Models/xml_history.dart';
 
 class XmlImportadoService {
@@ -24,8 +26,7 @@ class XmlImportadoService {
   Future<Database> _initDatabase() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String path = join(documentsDirectory.path, _databaseName);
-    // ignore: avoid_print
-    print('Caminho do banco SQLite: $path'); // Debug
+    AppLogger.i('SQLite', 'Banco XMLs importados: $path');
 
     Database db = await openDatabase(
       path,
@@ -52,11 +53,9 @@ class XmlImportadoService {
       await db.update(_tableName, {
         'revisao': 1,
       }, where: 'revisao IS NULL OR revisao = 0');
-      // ignore: avoid_print
-      print('Dados de status corrigidos com sucesso');
+      AppLogger.d('SQLite', 'Dados de status corrigidos');
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao corrigir dados de status: $e');
+      AppLogger.e('SQLite', 'Erro ao corrigir dados de status', error: e);
     }
   }
 

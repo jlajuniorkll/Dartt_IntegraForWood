@@ -1,3 +1,4 @@
+import 'package:dartt_integraforwood/services/app_logger.dart';
 import 'package:postgres/postgres.dart';
 
 class PostgresConnection {
@@ -27,6 +28,7 @@ class PostgresConnection {
       );
       return true;
     } catch (e) {
+      AppLogger.e('Postgres', 'Falha ao conectar ao ForWood (PostgreSQL)', error: e);
       return false;
     }
   }

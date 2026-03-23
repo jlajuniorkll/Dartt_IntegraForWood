@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:dartt_integraforwood/Routes/app_routes.dart';
 import 'package:dartt_integraforwood/commom/commom_functions.dart';
+import 'package:dartt_integraforwood/services/app_logger.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'dart:io';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 void main() async {
@@ -17,7 +20,24 @@ void main() async {
   
   // Garante pasta de logs ao iniciar o app
   await initLogsFolder();
-  
+
+  Get.put(AppLogger(), permanent: true);
+  await Get.find<AppLogger>().prepare();
+
+  FlutterError.onError = (FlutterErrorDetails details) {
+    AppLogger.e(
+      'Flutter',
+      details.exceptionAsString(),
+      stack: details.stack,
+    );
+    FlutterError.presentError(details);
+  };
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    AppLogger.e('Async', error.toString(), stack: stack);
+    return true;
+  };
+
   runApp(MyApp());
 }
 

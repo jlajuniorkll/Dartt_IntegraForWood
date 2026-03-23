@@ -11,6 +11,7 @@ import 'package:dartt_integraforwood/commom/commom_functions.dart';
 import 'package:dartt_integraforwood/commom/pdf_service.dart';
 import 'package:dartt_integraforwood/db/postgres_connection.dart';
 import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
+import 'package:dartt_integraforwood/services/app_logger.dart';
 import 'package:dartt_integraforwood/services/xml_importado_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -92,6 +93,11 @@ class HomeScreenController extends GetxController {
       password: password,
     );
     setDatabaseon(conected);
+    if (conected) {
+      AppLogger.i('ForWood', 'PostgreSQL conectado ($host:$port/$database)');
+    } else {
+      AppLogger.w('ForWood', 'PostgreSQL não conectou ($host:$port/$database)');
+    }
   }
 
   Future<void> connectSqlServer() async {
@@ -247,8 +253,9 @@ class HomeScreenController extends GetxController {
       _updateLoadStep(4, StepStatus.done); // Finalizando
       statusMessage.value = 'Importado com sucesso...';
       isLoading.value = false;
+      AppLogger.i('XML', 'Importado: $fileName');
     } catch (e) {
-      //TODO: Criar gestão caso não leia o xml
+      AppLogger.e('XML', 'Falha ao carregar/analisar XML ($fileName)', error: e);
       isLoading.value = false;
     }
   }
@@ -294,6 +301,9 @@ class HomeScreenController extends GetxController {
         itembox: [],
         codpai: codMestre,
       );
+
+      outlite.codpaiPedidoExisteNaEstrutur =
+          await homeScreenRepository.estprodutoExisteEmEstrutur(outlite.codpai);
 
       final List<ItemBox> itemBoxList = [];
       /*codMestre =
@@ -383,10 +393,29 @@ class HomeScreenController extends GetxController {
       _updateLoadStep(4, StepStatus.current); // Finalizando
 
       outlite.itembox = itemBoxList;
+      if (outlite.codpaiPedidoExisteNaEstrutur == false) {
+        _limparFlagsPendenteCadastroForWood(outlite);
+      }
       outliteData.value = outlite;
     } else {
       _updateLoadStep(1, StepStatus.done);
       _updateLoadStep(4, StepStatus.current);
+    }
+  }
+
+  /// Sem CODPAIPED na estrutur: remove estado verde "Atualizar" (mantém texto de descrição).
+  void _limparFlagsPendenteCadastroForWood(Outlite outlite) {
+    for (final box in outlite.itembox ?? []) {
+      for (final p in box.itemPecas ?? []) {
+        if (p.precisaCadastroForWood) {
+          p.precisaCadastroForWood = false;
+        }
+      }
+      for (final ip in box.itemPrice ?? []) {
+        if (ip.precisaCadastroForWood) {
+          ip.precisaCadastroForWood = false;
+        }
+      }
     }
   }
 
@@ -443,10 +472,18 @@ class HomeScreenController extends GetxController {
             fitatra = partes[7].split('/')[7];
           }
 
+          final resolved = await homeScreenRepository.resolveProdutoComDimensoes(
+            partes[0],
+            partes[3],
+            partes[4],
+            partes[5],
+          );
+          final codPg = resolved.codigoProdutoPostgres ?? partes[0];
+
           itemPecas.add(
             ItemPecas(
               codpeca: partes[0],
-              idpeca: await homeScreenRepository.getDescricaoProduto(partes[0]),
+              idpeca: resolved.idpeca,
               qta: partes[1],
               comprimento: partes[3],
               largura: partes[4],
@@ -462,29 +499,32 @@ class HomeScreenController extends GetxController {
               fitafre: fitafre,
               fitatra: fitatra,
               matricula: matricula,
+              codigoProdutoPostgres: resolved.codigoProdutoPostgres,
+              precisaCadastroForWood: resolved.precisaCadastroForWood,
+              descricaoSqlServer: resolved.descricaoSqlServer,
 
               grupo: await homeScreenRepository.getProdutoForId(
-                partes[0],
+                codPg,
                 'grupo_produto',
               ),
               subgrupo: await homeScreenRepository.getProdutoForId(
-                partes[0],
+                codPg,
                 'subgrupo_produto',
               ),
               um: await homeScreenRepository.getProdutoForId(
-                partes[0],
+                codPg,
                 'um_produto',
               ),
               origem: await homeScreenRepository.getProdutoForId(
-                partes[0],
+                codPg,
                 'origem_produto',
               ),
               status: await homeScreenRepository.getProdutoForId(
-                partes[0],
+                codPg,
                 'status_produto',
               ),
               fase: await homeScreenRepository.getProdutoForId(
-                partes[0],
+                codPg,
                 'fase_padrao_consumo',
               ),
             ),
@@ -507,6 +547,10 @@ class HomeScreenController extends GetxController {
 
     final numeroPedido = outlite.numero ?? '';
     initPedidoLog(numeroPedido);
+    AppLogger.i(
+      'ForWood',
+      'Enviar para produção: pedido $numeroPedido, fab ${outlite.numeroFabricacao ?? ""}',
+    );
 
     try {
       await saveCadireta(
@@ -516,6 +560,10 @@ class HomeScreenController extends GetxController {
       );
 
       if (saveOKCadireta.isNotEmpty) {
+        AppLogger.e(
+          'ForWood',
+          'enviarOutliteParaForWood abortado: ${saveOKCadireta.length} erro(s) cadireta',
+        );
         saveCadiretaLoading.value = false;
         return false;
       }
@@ -527,9 +575,13 @@ class HomeScreenController extends GetxController {
       _updateSaveStep(5, StepStatus.done);
 
       saveCadiretaLoading.value = false;
+      if (cadiretaSuccess.value) {
+        AppLogger.i('ForWood', 'enviarOutliteParaForWood OK ($numeroPedido)');
+      }
       return cadiretaSuccess.value;
     } catch (e) {
       saveCadiretaLoading.value = false;
+      AppLogger.e('ForWood', 'enviarOutliteParaForWood exceção', error: e);
       rethrow;
     }
   }
@@ -557,14 +609,18 @@ class HomeScreenController extends GetxController {
     }
   }
 
-  /// Constrói e salva registros CADIRE2 a partir do Outlite.
+  /// Constrói e salva registros CADIRE2 a partir do Outlite (somente INSERT; não apaga a tabela nem o projeto).
   Future<void> _saveCadire2(Outlite outlite) async {
     final cadinfprod = outlite.numeroFabricacao ?? outlite.numero ?? '';
     if (cadinfprod.isEmpty) return;
 
-    await homeScreenRepository.deleteCadire2ByProject(cadinfprod);
-
-    final lista = _buildCadire2List(outlite);
+    final maxCounters =
+        await homeScreenRepository.getCadire2MaxCountersForProd(cadinfprod);
+    final lista = _buildCadire2List(
+      outlite,
+      startCadinfseq: maxCounters.seq + 1,
+      startCadinfcont: maxCounters.cont + 1,
+    );
     _lastSavedCadire2Json = jsonEncode(lista.map((c) => c.toMap()).toList());
     int seq = 1;
     for (final c2 in lista) {
@@ -575,11 +631,15 @@ class HomeScreenController extends GetxController {
   }
 
   /// Monta lista de Cadire2 a partir do Outlite (ItemBox -> ItemPecas).
-  List<Cadire2> _buildCadire2List(Outlite outlite) {
+  List<Cadire2> _buildCadire2List(
+    Outlite outlite, {
+    int startCadinfseq = 1,
+    int startCadinfcont = 1,
+  }) {
     final cadinfprod = outlite.numeroFabricacao ?? outlite.numero ?? '';
     final lista = <Cadire2>[];
-    int cadinfcont = 1;
-    int cadinfseq = 1;
+    int cadinfcont = startCadinfcont;
+    int cadinfseq = startCadinfseq;
 
     for (final box in outlite.itembox ?? []) {
       for (final pec in box.itemPecas ?? []) {
@@ -599,12 +659,56 @@ class HomeScreenController extends GetxController {
     return lista;
   }
 
+  /// Se houver erros ou itens "Atualizar", pergunta se o usuário deseja enviar assim mesmo.
+  /// Retorna `true` para prosseguir com o envio.
+  Future<bool> confirmarEnvioParaForWoodSeNecessario(Outlite outlite) async {
+    final nErros = outlite.totalErrosCount;
+    final nAtualizar = outlite.totalPendentesCadastroCount;
+    if (nErros == 0 && nAtualizar == 0) {
+      return true;
+    }
+
+    final partes = <String>[];
+    if (nErros > 0) {
+      partes.add(
+        '$nErros erro${nErros == 1 ? '' : 's'} (produto não encontrado ou falha na resolução)',
+      );
+    }
+    if (nAtualizar > 0) {
+      partes.add(
+        '$nAtualizar atualização${nAtualizar == 1 ? '' : 'ões'} pendente${nAtualizar == 1 ? '' : 's'} no ForWood (cadastrar no PostgreSQL)',
+      );
+    }
+
+    return await Get.dialog<bool>(
+          AlertDialog(
+            title: const Text('Atenção antes de enviar'),
+            content: Text(
+              'Este pedido possui:\n• ${partes.join('\n• ')}\n\n'
+              'Deseja enviar para o ForWood mesmo assim?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Get.back(result: false),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Get.back(result: true),
+                child: const Text('Enviar mesmo assim'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+  }
+
   Future<void> saveDataBase({Outlite? outlite, String? xmlString}) async {
     saveCadiretaLoading.value = true;
 
     // Inicia arquivo de log do pedido ao enviar para ForWood
     final numeroPedido = outlite?.numero ?? '';
     initPedidoLog(numeroPedido);
+    AppLogger.i('ForWood', 'Início envio cadireta/cadiredi pedido $numeroPedido');
 
     if (outliteData.value != null) {
       // Salvar no banco PostgreSQL (ForWood)
@@ -613,6 +717,12 @@ class HomeScreenController extends GetxController {
       // Se o salvamento foi bem-sucedido, salvar também no SQLite
       if (saveOKCadireta.isEmpty && cadiretaSuccess.value == true) {
         await _saveXmlToSqlite(outliteData.value!, xmlString);
+        AppLogger.i('ForWood', 'Envio concluído com sucesso ($numeroPedido)');
+      } else if (saveOKCadireta.isNotEmpty) {
+        AppLogger.e(
+          'ForWood',
+          'Envio com erros ($numeroPedido): ${saveOKCadireta.length} falha(s)',
+        );
       }
     }
 
@@ -701,6 +811,7 @@ class HomeScreenController extends GetxController {
         }
       }
     } catch (e) {
+      AppLogger.e('SQLite', 'Erro ao salvar XML importado', error: e);
       Get.snackbar(
         'Erro',
         'Erro ao salvar XML: $e',
@@ -793,12 +904,18 @@ class HomeScreenController extends GetxController {
             }
           }
 
+          final resolvedCompra =
+              await homeScreenRepository.resolveProdutoCodigoCompra(partesDP[1]);
+
           itemPrice.add(
             ItemPrice(
               codigo: partesDP[1],
-              des: await homeScreenRepository.getDescricaoProduto(partesDP[1]),
+              des: resolvedCompra.idpeca,
               qtd: partesDP[6],
-              matricula: matricula, // Adicionar a matrícula extraída
+              matricula: matricula,
+              codigoProdutoPostgres: resolvedCompra.codigoProdutoPostgres,
+              precisaCadastroForWood: resolvedCompra.precisaCadastroForWood,
+              descricaoSqlServer: resolvedCompra.descricaoSqlServer,
             ),
           );
         }
@@ -809,13 +926,64 @@ class HomeScreenController extends GetxController {
     }
   }
 
-  /// Collects expected child codes for an ItemBox: itemPecas.codpeca + CODFIG from expanded structure.
-  Future<Set<String>> _getExpectedFilhosForItemBox(ItemBox oi) async {
-    final filhos = <String>{};
+  String _estruturMultisetKey(
+    String cod,
+    String comp,
+    String larg,
+    String esp,
+  ) {
+    double normDim(String? s) {
+      return double.tryParse(s?.replaceAll(',', '.').trim() ?? '') ?? 0.0;
+    }
+
+    final c = normDim(comp);
+    final l = normDim(larg);
+    final e = normDim(esp);
+    return '${cod.trim().toUpperCase()}|${c.toStringAsFixed(4)}|${l.toStringAsFixed(4)}|${e.toStringAsFixed(4)}';
+  }
+
+  Map<String, double> _aggregateMultisetEstrutur(
+    List<EstruturFilhoDetalhe> rows,
+  ) {
+    final map = <String, double>{};
+    for (final r in rows) {
+      final k = _estruturMultisetKey(
+        r.estfilho,
+        r.comprimento,
+        r.largura,
+        r.espessura,
+      );
+      map[k] = (map[k] ?? 0) + 1.0;
+    }
+    return map;
+  }
+
+  bool _multisetQtyIguais(Map<String, double> a, Map<String, double> b) {
+    if (a.length != b.length) return false;
+    for (final e in a.entries) {
+      final vb = b[e.key];
+      if (vb == null) return false;
+      if ((e.value - vb).abs() > 1e-4) return false;
+    }
+    return true;
+  }
+
+  /// Filhos esperados: códigos PostgreSQL + dimensões + quantidades (DISTINTAT + CODFIG).
+  Future<Map<String, double>> _getExpectedFilhosMultiset(ItemBox oi) async {
+    final map = <String, double>{};
 
     for (final itemPeca in oi.itemPecas ?? []) {
-      final cod = (itemPeca.codpeca ?? '').trim().toUpperCase();
-      if (cod.isNotEmpty) filhos.add(cod);
+      final comp = itemPeca.comprimento ?? '0';
+      final larg = itemPeca.largura ?? '0';
+      final esp = itemPeca.espessura ?? '0';
+      final codResolved =
+          (itemPeca.codigoProdutoPostgres ?? itemPeca.codpeca ?? '').trim();
+      if (codResolved.isEmpty) continue;
+
+      final q =
+          double.tryParse(itemPeca.qta?.replaceAll(',', '.') ?? '0') ?? 0.0;
+      final k = _estruturMultisetKey(codResolved, comp, larg, esp);
+      map[k] = (map[k] ?? 0) + q;
 
       if (itemPeca.codpeca != null &&
           itemPeca.codpeca!.isNotEmpty &&
@@ -837,28 +1005,28 @@ class HomeScreenController extends GetxController {
             final estrutura =
                 List<Map<String, dynamic>>.from(json.decode(result));
             for (final item in estrutura) {
-              final codfig = item['CODFIG']?.toString().trim();
-              if (codfig != null && codfig.isNotEmpty) {
-                filhos.add(codfig.toUpperCase());
-              }
+              final codfig = item['CODFIG']?.toString().trim() ?? '';
+              if (codfig.isEmpty) continue;
+              final qtyStr = item['QTA']?.toString() ?? '0';
+              final qty =
+                  double.tryParse(qtyStr.replaceAll(',', '.')) ?? 0.0;
+              final resFig =
+                  await homeScreenRepository.resolveProdutoComDimensoes(
+                codfig,
+                comp,
+                larg,
+                esp,
+              );
+              final codPg = resFig.codigoProdutoPostgres ?? codfig;
+              final k2 = _estruturMultisetKey(codPg, comp, larg, esp);
+              map[k2] = (map[k2] ?? 0) + qty;
             }
-          } catch (_) {
-            // Ignore parse errors
-          }
+          } catch (_) {}
         }
       }
     }
 
-    filhos.removeWhere((s) => s.isEmpty);
-    return filhos;
-  }
-
-  /// Compares two sets of child codes (order-independent).
-  bool _filhosIguais(Set<String> a, List<String> b) {
-    final bSet = b.map((s) => s.trim().toUpperCase()).where((s) => s.isNotEmpty).toSet();
-    if (a.length != bSet.length) return false;
-    final aNorm = a.map((s) => s.trim().toUpperCase()).toSet();
-    return aNorm.containsAll(bSet) && bSet.containsAll(aNorm);
+    return map;
   }
 
   Future<void> saveCadireta(
@@ -883,6 +1051,14 @@ class HomeScreenController extends GetxController {
     // Fase 1: Determinar codpai para cada ItemBox (reutilizar ou ESP0019)
     final List<String> codpaiPorModulo = [];
 
+    var pedidoTemEstruturNaPg = outlite.codpaiPedidoExisteNaEstrutur;
+    pedidoTemEstruturNaPg ??=
+        await homeScreenRepository.estprodutoExisteEmEstrutur(outlite.codpai);
+    outlite.codpaiPedidoExisteNaEstrutur = pedidoTemEstruturNaPg;
+    if (pedidoTemEstruturNaPg != true) {
+      _limparFlagsPendenteCadastroForWood(outlite);
+    }
+
     for (var i = 0; i < (outlite.itembox ?? []).length; i++) {
       final oi = outlite.itembox![i];
       _updateSaveStep(
@@ -891,17 +1067,41 @@ class HomeScreenController extends GetxController {
         label: 'Processando módulo ${i + 1} de $totalModules',
       );
 
-      final expectedFilhos = await _getExpectedFilhosForItemBox(oi);
-      final existe = await homeScreenRepository.estprodutoExisteEmEstrutur(
-        oi.codigo ?? '',
-      );
-
       String codpai;
-      if (existe) {
-        final dbFilhos =
-            await homeScreenRepository.getFilhosFromEstrutur(oi.codigo ?? '');
-        if (_filhosIguais(expectedFilhos, dbFilhos)) {
-          codpai = oi.codigo ?? '';
+      if (pedidoTemEstruturNaPg != true) {
+        codpai = await executaEspecialESP0019(
+          codbatismocorte,
+          500,
+          8,
+          i + 1,
+          'P',
+        );
+      } else {
+        final expectedMultiset = await _getExpectedFilhosMultiset(oi);
+        final estParent =
+            await homeScreenRepository.resolveEstprodutoParaEstrutur(
+          codigoRiga: oi.codigo,
+          desModulo: oi.des,
+          l: oi.l,
+          a: oi.a,
+          p: oi.p,
+        );
+
+        if (estParent != null) {
+          final dbRows =
+              await homeScreenRepository.getFilhosEstruturDetalhado(estParent);
+          final dbMultiset = _aggregateMultisetEstrutur(dbRows);
+          if (_multisetQtyIguais(expectedMultiset, dbMultiset)) {
+            codpai = estParent;
+          } else {
+            codpai = await executaEspecialESP0019(
+              codbatismocorte,
+              500,
+              8,
+              i + 1,
+              'P',
+            );
+          }
         } else {
           codpai = await executaEspecialESP0019(
             codbatismocorte,
@@ -911,14 +1111,6 @@ class HomeScreenController extends GetxController {
             'P',
           );
         }
-      } else {
-        codpai = await executaEspecialESP0019(
-          codbatismocorte,
-          500,
-          8,
-          i + 1,
-          'P',
-        );
       }
       codpaiPorModulo.add(codpai);
     }

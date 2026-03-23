@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
+import 'package:dartt_integraforwood/services/app_logger.dart';
 
 int? multiplicaQtd(String s, String t) {
   int? result;
@@ -99,6 +100,7 @@ String initPedidoLog(String numeroPedido) {
   }
   _pedidoLogFilePath = filePath;
   _lastTableWritten = null;
+  AppLogger.i('PedidoLog', 'CSV do pedido: $filePath');
   return filePath;
 }
 

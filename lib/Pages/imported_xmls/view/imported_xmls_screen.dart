@@ -1,3 +1,4 @@
+import 'package:dartt_integraforwood/Routes/app_routes.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -38,6 +39,11 @@ class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
       appBar: AppBar(
         title: Text('XMLs Importados'),
         actions: [
+          IconButton(
+            tooltip: 'Log do sistema',
+            icon: Icon(Icons.article_outlined),
+            onPressed: () => Get.toNamed(PageRoutes.systemLog),
+          ),
           IconButton(
             icon: Icon(Icons.refresh),
             onPressed: () => controller.loadXmlsImportados(),

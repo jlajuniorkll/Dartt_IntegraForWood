@@ -10,6 +10,9 @@ class Outlite {
   String fileName = "";
   List<ItemBox>? itembox;
   String codpai = "";
+  /// true se `codpai` (CODPAIPED) existe como `estproduto` na `estrutur` do PostgreSQL.
+  /// Quando false, não exibe UI verde "Atualizar" e o envio reserva código novo por módulo.
+  bool? codpaiPedidoExisteNaEstrutur;
 
   Outlite({
     this.data,
@@ -20,6 +23,7 @@ class Outlite {
     required this.fileName,
     this.itembox,
     this.codpai = "",
+    this.codpaiPedidoExisteNaEstrutur,
   });
 
   Map<String, dynamic> toMap() {
@@ -32,6 +36,7 @@ class Outlite {
       'fileName': fileName,
       'itembox': itembox?.map((x) => x.toMap()).toList(),
       'codpai': codpai,
+      'codpaiPedidoExisteNaEstrutur': codpaiPedidoExisteNaEstrutur,
     };
   }
 
@@ -48,6 +53,7 @@ class Outlite {
       rif: map['rif'] as String,
       fileName: map['fileName'] as String,
       codpai: map['codpai'] != null ? map['codpai'] as String : "",
+      codpaiPedidoExisteNaEstrutur: map['codpaiPedidoExisteNaEstrutur'] as bool?,
       itembox:
           map['itembox'] != null
               ? List<ItemBox>.from(
@@ -62,6 +68,18 @@ class Outlite {
 
   factory Outlite.fromJson(String source) =>
       Outlite.fromMap(json.decode(source) as Map<String, dynamic>);
+
+  /// Soma de erros (descrição começando com `Erro:`) em todos os módulos.
+  int get totalErrosCount =>
+      itembox?.fold<int>(0, (s, b) => s + b.totalErrosCount) ?? 0;
+
+  /// Itens com cadastro pendente no ForWood (rótulo verde "Atualizar") em todos os módulos.
+  int get totalPendentesCadastroCount =>
+      itembox?.fold<int>(
+            0,
+            (s, b) => s + b.totalPendentesCadastroCount,
+          ) ??
+          0;
 }
 
 class ItemBox {
@@ -116,17 +134,15 @@ class ItemBox {
       itemPecas:
           map['itemPecas'] != null
               ? List<ItemPecas>.from(
-                (map['itemPecas'] as List<int>).map<ItemPecas?>(
-                  (x) => ItemPecas.fromMap(x as Map<String, dynamic>),
-                ),
+                (map['itemPecas'] as List)
+                    .map<ItemPecas>((x) => ItemPecas.fromMap(x as Map<String, dynamic>)),
               )
               : null,
       itemPrice:
           map['itemPrice'] != null
               ? List<ItemPrice>.from(
-                (map['itemPrice'] as List<int>).map<ItemPrice?>(
-                  (x) => ItemPrice.fromMap(x as Map<String, dynamic>),
-                ),
+                (map['itemPrice'] as List)
+                    .map<ItemPrice>((x) => ItemPrice.fromMap(x as Map<String, dynamic>)),
               )
               : null,
     );
@@ -137,6 +153,13 @@ class ItemBox {
   int get errosCompraCount =>
       itemPrice?.where((p) => p.hasErroDescricao).length ?? 0;
   int get totalErrosCount => errosProducaoCount + errosCompraCount;
+
+  int get pendentesCadastroProducaoCount =>
+      itemPecas?.where((p) => p.precisaCadastroForWoodUi).length ?? 0;
+  int get pendentesCadastroCompraCount =>
+      itemPrice?.where((p) => p.precisaCadastroForWoodUi).length ?? 0;
+  int get totalPendentesCadastroCount =>
+      pendentesCadastroProducaoCount + pendentesCadastroCompraCount;
 
   String toJson() => json.encode(toMap());
 
@@ -175,6 +198,12 @@ class ItemPecas {
   String? status;
   String? fase;
   String? matricula; // Novo campo para armazenar a matrícula
+  /// Código do produto no PostgreSQL/ForWood após mapeamento (código ou nome+medidas).
+  String? codigoProdutoPostgres;
+  /// true quando existe em articoli mas não cadastrado no PG (UX verde "Atualizar").
+  bool precisaCadastroForWood;
+  /// Descrição vinda do SQL Server (articoli) quando precisaCadastroForWood.
+  String? descricaoSqlServer;
 
   ItemPecas({
     this.codpeca,
@@ -207,10 +236,16 @@ class ItemPecas {
     this.status,
     this.fase,
     this.matricula, // Adicionar ao construtor
+    this.codigoProdutoPostgres,
+    this.precisaCadastroForWood = false,
+    this.descricaoSqlServer,
   });
 
   bool get hasErroDescricao =>
       (idpeca ?? '').toString().startsWith('Erro:');
+
+  bool get precisaCadastroForWoodUi =>
+      precisaCadastroForWood && !hasErroDescricao;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -244,6 +279,9 @@ class ItemPecas {
       'status': status,
       'fase': fase,
       'matricula': matricula, // Adicionar ao mapa
+      'codigoProdutoPostgres': codigoProdutoPostgres,
+      'precisaCadastroForWood': precisaCadastroForWood,
+      'descricaoSqlServer': descricaoSqlServer,
     };
   }
 
@@ -258,8 +296,8 @@ class ItemPecas {
       codcor: map['codcor'] != null ? map['codcor'] as String : null,
       codpainel: map['codpainel'] != null ? map['codpainel'] as String : null,
       codborda: map['codborda'] != null ? map['codborda'] as String : null,
-      nomePRG1: map['nomePRG1'] as String,
-      nomePRG2: map['nomePRG2'] as String,
+      nomePRG1: map['nomePRG1'] as String? ?? '',
+      nomePRG2: map['nomePRG2'] as String? ?? '',
       trabalhoesq:
           map['trabalhoesq'] != null ? map['trabalhoesq'] as String : null,
       trabalhodir:
@@ -290,6 +328,9 @@ class ItemPecas {
           map['matricula'] != null
               ? map['matricula'] as String
               : null, // Adicionar ao fromMap
+      codigoProdutoPostgres: map['codigoProdutoPostgres'] as String?,
+      precisaCadastroForWood: map['precisaCadastroForWood'] == true,
+      descricaoSqlServer: map['descricaoSqlServer'] as String?,
     );
   }
 
@@ -311,6 +352,9 @@ class ItemPrice {
   String? status;
   String? fase;
   String? matricula; // Novo campo para armazenar a matrícula
+  String? codigoProdutoPostgres;
+  bool precisaCadastroForWood;
+  String? descricaoSqlServer;
 
   ItemPrice({
     this.riga,
@@ -318,10 +362,16 @@ class ItemPrice {
     this.des,
     this.qtd,
     this.matricula, // Adicionar ao construtor
+    this.codigoProdutoPostgres,
+    this.precisaCadastroForWood = false,
+    this.descricaoSqlServer,
   });
 
   bool get hasErroDescricao =>
       (des ?? '').toString().startsWith('Erro:');
+
+  bool get precisaCadastroForWoodUi =>
+      precisaCadastroForWood && !hasErroDescricao;
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -330,6 +380,9 @@ class ItemPrice {
       'des': des,
       'qtd': qtd,
       'matricula': matricula, // Adicionar ao mapa
+      'codigoProdutoPostgres': codigoProdutoPostgres,
+      'precisaCadastroForWood': precisaCadastroForWood,
+      'descricaoSqlServer': descricaoSqlServer,
     };
   }
 
@@ -343,6 +396,9 @@ class ItemPrice {
           map['matricula'] != null
               ? map['matricula'] as String
               : null, // Adicionar ao fromMap
+      codigoProdutoPostgres: map['codigoProdutoPostgres'] as String?,
+      precisaCadastroForWood: map['precisaCadastroForWood'] == true,
+      descricaoSqlServer: map['descricaoSqlServer'] as String?,
     );
   }
 

@@ -251,6 +251,12 @@ class ImportedXmlsController extends GetxController {
       final homeController = Get.find<HomeScreenController>();
       homeController.aplicarNumeroFabricacaoAoOutlite(outlite, numeroFabricacao);
 
+      final podeEnviar =
+          await homeController.confirmarEnvioParaForWoodSeNecessario(outlite);
+      if (!podeEnviar) {
+        return;
+      }
+
       Get.dialog(
         PopScope(
           canPop: false,

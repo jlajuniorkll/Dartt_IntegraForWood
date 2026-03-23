@@ -1,5 +1,7 @@
-import 'dart:ffi';
 import 'dart:convert';
+import 'dart:ffi';
+
+import 'package:dartt_integraforwood/services/app_logger.dart';
 import 'package:ffi/ffi.dart';
 
 class SqlServerConnection {
@@ -120,40 +122,46 @@ class SqlServerConnection {
 
         // Notificar progresso
         onProgress?.call(i + 1, connectionConfigs.length, driverName);
-        // ignore: avoid_print
-        print('Tentativa ${i + 1} de ${connectionConfigs.length}: $driverName');
-        // ignore: avoid_print
-        print(
+        AppLogger.d(
+          'SQLServer',
+          'Tentativa ${i + 1} de ${connectionConfigs.length}: $driverName',
+        );
+        AppLogger.d(
+          'SQLServer',
           'String de conexão: ${connectionString.replaceAll(password, '***')}',
         );
 
         bool connected = _connectWithString(connectionString);
         if (connected) {
           _isConnected = connected;
-          // ignore: avoid_print
-          print('Conexão bem-sucedida na tentativa ${i + 1} com $driverName');
+          AppLogger.i(
+            'SQLServer',
+            'Conexão bem-sucedida na tentativa ${i + 1} com $driverName',
+          );
           return connected;
         }
-        // ignore: avoid_print
-        print('Tentativa ${i + 1} com $driverName falhou, tentando próxima...');
+        AppLogger.d(
+          'SQLServer',
+          'Tentativa ${i + 1} com $driverName falhou, tentando próxima...',
+        );
       }
 
       // Se chegou aqui, todas as tentativas falharam
       _isConnected = false;
-      // ignore: avoid_print
-      print(
+      AppLogger.w(
+        'SQLServer',
         'Todas as ${connectionConfigs.length} tentativas de conexão falharam',
       );
       return false;
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro na conexão SQL Server: $e');
+      AppLogger.e('SQLServer', 'Erro na conexão', error: e);
       return false;
     }
   }
 
   Future<String> getData(String query) async {
     if (!_isConnected) {
+      AppLogger.w('SQLServer', 'getData sem conexão ativa');
       return jsonEncode([
         {'erro': 'Não conectado ao banco de dados'},
       ]);
@@ -163,8 +171,7 @@ class SqlServerConnection {
       List<Map<String, dynamic>> results = _executeQuery(query);
       return jsonEncode(results);
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao executar query: $e');
+      AppLogger.e('SQLServer', 'Erro ao executar query', error: e);
       return jsonEncode([
         {'erro': 'Erro ao executar consulta: $e'},
       ]);
@@ -208,8 +215,7 @@ class SqlServerConnection {
       calloc.free(pEnv);
       return 0;
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao alocar environment: $e');
+      AppLogger.e('SQLServer', 'Erro ao alocar environment', error: e);
       return 0;
     }
   }
@@ -228,8 +234,7 @@ class SqlServerConnection {
       calloc.free(pDbc);
       return 0;
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao alocar conexão: $e');
+      AppLogger.e('SQLServer', 'Erro ao alocar conexão', error: e);
       return 0;
     }
   }
@@ -256,18 +261,18 @@ class SqlServerConnection {
       calloc.free(outConnStrLen);
 
       if (result == SQL_SUCCESS || result == SQL_SUCCESS_WITH_INFO) {
-        // ignore: avoid_print
-        print('Conexão SQLOLEDB estabelecida com sucesso');
+        AppLogger.d('SQLServer', 'Conexão SQLOLEDB estabelecida com sucesso');
         return true;
       } else {
-        // ignore: avoid_print
-        print('Falha na conexão SQLOLEDB. Código de erro: $result');
+        AppLogger.w(
+          'SQLServer',
+          'Falha na conexão SQLOLEDB. Código de erro: $result',
+        );
         _printSQLError();
         return false;
       }
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao conectar com string: $e');
+      AppLogger.e('SQLServer', 'Erro ao conectar com string', error: e);
       return false;
     }
   }
@@ -279,27 +284,17 @@ class SqlServerConnection {
       final messageText = calloc<Uint16>(1024);
       final textLength = calloc<Int16>();
 
-      // Tentar obter informações de erro
-      // ignore: avoid_print
-      print('Detalhes do erro de conexão SQLOLEDB:');
-      // ignore: avoid_print
-      print('- Verifique se o SQL Server está rodando');
-      // ignore: avoid_print
-      print('- Verifique se o serviço SQL Server Browser está ativo');
-      // ignore: avoid_print
-      print('- Confirme o nome da instância: NOTEDARTT\\ECADPRO2019');
-      // ignore: avoid_print
-      print('- Verifique as credenciais: sa / eCadPro2019');
-      // ignore: avoid_print
-      print('- Verifique configurações de firewall');
+      AppLogger.w(
+        'SQLServer',
+        'Dicas SQLOLEDB: SQL Server rodando; Browser ativo; instância/credenciais; firewall',
+      );
 
       calloc.free(sqlState);
       calloc.free(nativeError);
       calloc.free(messageText);
       calloc.free(textLength);
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao obter detalhes do erro: $e');
+      AppLogger.e('SQLServer', 'Erro ao obter detalhes ODBC', error: e);
     }
   }
 
@@ -332,8 +327,7 @@ class SqlServerConnection {
       SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
       return results;
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao executar query: $e');
+      AppLogger.e('SQLServer', 'Erro em _executeQuery', error: e);
       return [];
     }
   }
@@ -405,8 +399,7 @@ class SqlServerConnection {
 
       return results;
     } catch (e) {
-      // ignore: avoid_print
-      print('Erro ao buscar resultados: $e');
+      AppLogger.e('SQLServer', 'Erro ao buscar resultados', error: e);
       return results;
     }
   }
