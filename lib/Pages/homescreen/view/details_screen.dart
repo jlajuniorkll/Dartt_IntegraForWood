@@ -276,18 +276,24 @@ class DetailsScreen extends StatelessWidget {
               Obx(() {
                 final outlite = controller.outliteData.value;
                 if (controller.isLoading.value) {
-                  // return Center(child: CircularProgressIndicator());
                   return Center(
                     child: LoadingWidget(
-                      message: controller.statusMessage.value,
+                      steps: controller.loadProgressSteps,
+                      message: controller.loadProgressSteps.isEmpty
+                          ? controller.statusMessage.value
+                          : null,
                     ),
                   );
                 }
                 if (controller.saveCadiretaLoading.value) {
-                  // return Center(child: CircularProgressIndicator());
                   return Center(
                     child: LoadingWidget(
-                      message: "Importando dados para o ForWood...",
+                      steps: controller.saveProgressSteps.isNotEmpty
+                          ? controller.saveProgressSteps
+                          : null,
+                      message: controller.saveProgressSteps.isEmpty
+                          ? "Importando dados para o ForWood..."
+                          : null,
                     ),
                   );
                 }
@@ -349,15 +355,57 @@ class DetailsScreen extends StatelessWidget {
                               outlite.itembox![index].qta!,
                               outlite.itembox![index].pz!,
                             );
+                            final itemBox = outlite.itembox![index];
+                            final hasErros = itemBox.totalErrosCount > 0;
                             return Card(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  ListTile(
-                                    title: Text(
-                                      'Pai: ${outlite.itembox![index].codigo} - ${outlite.itembox![index].des ?? 'N/A'} - ${qtdfinal ?? 'N/A'} - Dim: ${outlite.itembox![index].l ?? 'N/A'}x${outlite.itembox![index].a ?? 'N/A'}x${outlite.itembox![index].p ?? 'N/A'}',
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: hasErros
+                                      ? Border.all(
+                                          color: Colors.red.shade300,
+                                          width: 2,
+                                        )
+                                      : null,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ListTile(
+                                      title: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              'Pai: ${itemBox.codigo} - ${itemBox.des ?? 'N/A'} - ${qtdfinal ?? 'N/A'} - Dim: ${itemBox.l ?? 'N/A'}x${itemBox.a ?? 'N/A'}x${itemBox.p ?? 'N/A'}',
+                                            ),
+                                          ),
+                                          if (hasErros)
+                                            Tooltip(
+                                              message:
+                                                  '${itemBox.errosProducaoCount} erro(s) em produção, ${itemBox.errosCompraCount} erro(s) em compra',
+                                              child: Chip(
+                                                avatar: Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  color: Colors.red.shade800,
+                                                  size: 18,
+                                                ),
+                                                label: Text(
+                                                  '${itemBox.totalErrosCount} erro(s)',
+                                                  style: TextStyle(
+                                                    color: Colors.red.shade800,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                backgroundColor: Colors.red.shade100,
+                                                padding: EdgeInsets.symmetric(
+                                                  horizontal: 8,
+                                                  vertical: 4,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ),
-                                  ),
                                   Padding(
                                     padding: const EdgeInsets.all(8.0),
                                     child: Row(
@@ -390,7 +438,8 @@ class DetailsScreen extends StatelessWidget {
                                   ),
                                 ],
                               ),
-                            );
+                            ),
+                          );
                           },
                         ),
                     ],
@@ -486,7 +535,9 @@ class DetailsScreen extends StatelessWidget {
                                         ),
                                         TableRow(
                                           decoration: BoxDecoration(
-                                            color: Colors.white,
+                                            color: itemPrice.hasErroDescricao
+                                                ? Colors.red.shade100
+                                                : Colors.white,
                                           ),
                                           children: <Widget>[
                                             Padding(
@@ -651,7 +702,9 @@ class DetailsScreen extends StatelessWidget {
                                         ),
                                         TableRow(
                                           decoration: BoxDecoration(
-                                            color: Colors.white,
+                                            color: itemPecas.hasErroDescricao
+                                                ? Colors.red.shade100
+                                                : Colors.white,
                                           ),
                                           children: <Widget>[
                                             Padding(

@@ -44,9 +44,55 @@ class HomeScreenRepository {
       return null;
     }
   }
+  /// Returns list of child codes (estfilho) for a given parent (estproduto) from estrutur table.
+  Future<List<String>> getFilhosFromEstrutur(String estproduto) async {
+    final connection = PostgresConnection().connection;
+
+    if (connection == null) {
+      return [];
+    }
+
+    try {
+      final result = await connection.execute(
+        Sql.named(
+          'SELECT estfilho FROM estrutur WHERE estproduto = @estproduto',
+        ),
+        parameters: {'estproduto': estproduto},
+      );
+
+      return result
+          .map((row) => row.toColumnMap()['estfilho']?.toString() ?? '')
+          .where((s) => s.isNotEmpty)
+          .toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Returns true if estproduto exists in estrutur table.
+  Future<bool> estprodutoExisteEmEstrutur(String codigo) async {
+    final connection = PostgresConnection().connection;
+
+    if (connection == null) {
+      return false;
+    }
+
+    try {
+      final result = await connection.execute(
+        Sql.named(
+          'SELECT 1 FROM estrutur WHERE estproduto = @codigo LIMIT 1',
+        ),
+        parameters: {'codigo': codigo},
+      );
+
+      return result.isNotEmpty;
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<String> getDescricaoProduto(String codigoProduto) async {
     final connection = PostgresConnection().connection;
-    final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
 
     if (connection == null) {
       return 'Erro: Conexão não iniciada';
@@ -59,20 +105,27 @@ class HomeScreenRepository {
       parameters: {'codigo': codigoProduto},
     );
 
-    if (result.isEmpty) {
-      String query = "SELECT des FROM articoli WHERE cod = '$codigoProduto'";
-      String rawResult = await mssqlConnection.getData(
-        query,
-      ); // recebe como String
-      List<dynamic> parsed = jsonDecode(rawResult); // decodifica o JSON
-      if (parsed.isEmpty) {
-        return 'Erro: Produto não cadastrado';
-      }
-      return parsed.first["des"] as String; // acessa o valor
-    } else {
+    if (result.isNotEmpty) {
       final descricao = result.first.toColumnMap()['descricao_produto'];
       return descricao?.toString() ?? 'Erro: Sem descrição';
     }
+
+    // Fallback: buscar no SQL Server (articoli)
+    try {
+      final mssqlConnection = SqlServerConnection.getInstance().mssqlConnection;
+      final escaped = codigoProduto.replaceAll("'", "''");
+      final query = "SELECT des FROM articoli WHERE cod = '$escaped'";
+      final rawResult = await mssqlConnection.getData(query);
+      final parsed = jsonDecode(rawResult) as List;
+      if (parsed.isNotEmpty) {
+        final des = parsed.first['des']?.toString();
+        return des ?? 'Erro: Sem descrição';
+      }
+    } catch (_) {
+      // Ignora erro de SQL Server, retorna mensagem padrão
+    }
+
+    return 'Erro: Produto não cadastrado';
   }
 
   Future<String> getProdutoForId(String codigoProduto, String s) async {

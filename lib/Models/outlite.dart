@@ -51,9 +51,8 @@ class Outlite {
       itembox:
           map['itembox'] != null
               ? List<ItemBox>.from(
-                (map['itembox'] as List<int>).map<ItemBox?>(
-                  (x) => ItemBox.fromMap(x as Map<String, dynamic>),
-                ),
+                (map['itembox'] as List)
+                    .map<ItemBox>((x) => ItemBox.fromMap(x as Map<String, dynamic>)),
               )
               : null,
     );
@@ -133,6 +132,12 @@ class ItemBox {
     );
   }
 
+  int get errosProducaoCount =>
+      itemPecas?.where((p) => p.hasErroDescricao).length ?? 0;
+  int get errosCompraCount =>
+      itemPrice?.where((p) => p.hasErroDescricao).length ?? 0;
+  int get totalErrosCount => errosProducaoCount + errosCompraCount;
+
   String toJson() => json.encode(toMap());
 
   factory ItemBox.fromJson(String source) =>
@@ -203,6 +208,9 @@ class ItemPecas {
     this.fase,
     this.matricula, // Adicionar ao construtor
   });
+
+  bool get hasErroDescricao =>
+      (idpeca ?? '').toString().startsWith('Erro:');
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
@@ -311,6 +319,9 @@ class ItemPrice {
     this.qtd,
     this.matricula, // Adicionar ao construtor
   });
+
+  bool get hasErroDescricao =>
+      (des ?? '').toString().startsWith('Erro:');
 
   Map<String, dynamic> toMap() {
     return <String, dynamic>{

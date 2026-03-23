@@ -262,6 +262,7 @@ class XmlImportadoService {
     String? jsonCadiredi,
     String? jsonCadireta,
     String? jsonCadproce,
+    String? jsonOutlite,
     String? jsonCadire2,
   }) async {
     final db = await database;
@@ -272,6 +273,7 @@ class XmlImportadoService {
     if (jsonCadiredi != null) updates['jsonCadiredi'] = jsonCadiredi;
     if (jsonCadireta != null) updates['jsonCadireta'] = jsonCadireta;
     if (jsonCadproce != null) updates['jsonCadproce'] = jsonCadproce;
+    if (jsonOutlite != null) updates['jsonOutlite'] = jsonOutlite;
     if (jsonCadire2 != null) updates['jsonCadire2'] = jsonCadire2;
 
     return await db.update(

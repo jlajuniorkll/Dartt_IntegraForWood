@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../Models/outlite.dart';
 import '../../../Models/xml_history.dart';
-
+import '../../../Pages/common/widget_loader.dart';
+import '../../../Pages/homescreen/controller/home_screen_controller.dart';
 import '../../../services/xml_importado_service.dart';
 
 import '../view/json_comparison_screen.dart';
@@ -224,15 +228,74 @@ class ImportedXmlsController extends GetxController {
 
   Future<void> enviarParaProducao(XmlImportado xml) async {
     try {
-      // Validações básicas
       if ((xml.numeroFabricacao ?? '').trim().isEmpty) {
         Get.snackbar('Atenção', 'Preencha o número de fabricação');
         return;
       }
-      // Atualiza status para em_producao
-      await updateXmlStatus(xml.id!, 'em_producao');
-      // Aqui pode entrar sua lógica de envio das tabelas (cadireta/cadiredi/cadire2)
-      // Mantendo simples para eliminar erros da tela
+
+      final jsonOutlite = xml.jsonOutlite;
+      if (jsonOutlite == null || jsonOutlite.trim().isEmpty) {
+        Get.snackbar('Erro', 'XML sem dados Outlite para envio');
+        return;
+      }
+
+      Outlite outlite;
+      try {
+        outlite = Outlite.fromJson(jsonOutlite);
+      } catch (e) {
+        Get.snackbar('Erro', 'Falha ao reconstruir dados: $e');
+        return;
+      }
+
+      final numeroFabricacao = xml.numeroFabricacao!.trim();
+      final homeController = Get.find<HomeScreenController>();
+      homeController.aplicarNumeroFabricacaoAoOutlite(outlite, numeroFabricacao);
+
+      Get.dialog(
+        PopScope(
+          canPop: false,
+          child: Obx(
+            () => LoadingWidget(
+              steps: homeController.saveProgressSteps,
+            ),
+          ),
+        ),
+        barrierDismissible: false,
+      );
+
+      bool sucesso = false;
+      try {
+        sucesso = await homeController.enviarOutliteParaForWood(outlite);
+      } finally {
+        Get.back();
+      }
+
+      if (!sucesso) {
+        final erros = homeController.saveOKCadireta;
+        Get.snackbar(
+          'Erro',
+          'Falha ao enviar: ${erros.isNotEmpty ? erros.join('; ') : 'verifique os dados'}',
+        );
+        return;
+      }
+
+      await _xmlService.updateStatus(xml.id!, 'em_producao');
+      final idx = _allXmls.indexWhere((x) => x.id == xml.id);
+      if (idx != -1) {
+        final jsonOutliteAtualizado = jsonEncode(outlite.toMap());
+        await _xmlService.updateJsons(
+          xml.id!,
+          jsonOutlite: jsonOutliteAtualizado,
+          jsonCadire2: homeController.lastSavedCadire2Json,
+        );
+        _allXmls[idx] = _allXmls[idx].copyWith(
+          status: 'em_producao',
+          updatedAt: DateTime.now(),
+        );
+        _updateStatusCount();
+        _recomputeAndResetPagination();
+      }
+
       Get.snackbar('Sucesso', 'XML enviado para produção');
     } catch (e) {
       Get.snackbar('Erro', 'Falha ao enviar para produção: $e');

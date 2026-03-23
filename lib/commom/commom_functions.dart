@@ -37,6 +37,20 @@ String formatMatriculaComFabricacao(
   return 'C${zeroPad(numeroFabricacao, 6)}${zeroPad(matricula, 6)}';
 }
 
+/// Extrai a matrícula (número) de uma matrícula formatada (ex: C000001000002 -> 2)
+/// ou retorna o valor original se não estiver no formato esperado
+String extractMatricola(String? matricula) {
+  if (matricula == null || matricula.trim().isEmpty) return '0';
+  // Formato C + 6 dígitos numero + 6 dígitos matricola
+  final match = RegExp(r'^C\d{6}(\d{6})$').firstMatch(matricula.trim());
+  if (match != null) {
+    final s = match.group(1)!.replaceFirst(RegExp(r'^0+'), '');
+    return s.isEmpty ? '0' : s;
+  }
+  // Se for só um número, retorna como está
+  return matricula.trim();
+}
+
 /// Função para consultar Lista_corte e buscar PRG1 e PRG2
 Future<Map<String, String>> consultarListaCorte(
   String numeroFabricacao,

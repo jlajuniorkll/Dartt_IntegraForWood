@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:dartt_integraforwood/Models/cadire2.dart';
 import 'package:dartt_integraforwood/Models/cadiredi.dart';
 import 'package:dartt_integraforwood/Models/cadireta.dart';
 import 'package:dartt_integraforwood/Models/outlite.dart';
 import 'package:dartt_integraforwood/Models/xml_history.dart';
+import 'package:dartt_integraforwood/Pages/common/progress_step.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/repository/home_screen_repository.dart';
 import 'package:dartt_integraforwood/commom/commom_functions.dart';
 import 'package:dartt_integraforwood/commom/pdf_service.dart';
@@ -28,8 +30,10 @@ class HomeScreenController extends GetxController {
 
   RxBool isLoading = false.obs;
   RxString statusMessage = ''.obs;
+  RxList<ProgressStep> loadProgressSteps = <ProgressStep>[].obs;
   RxBool isGeneratingReport = false.obs;
   RxBool saveCadiretaLoading = false.obs;
+  RxList<ProgressStep> saveProgressSteps = <ProgressStep>[].obs;
   RxList saveOKCadireta = [].obs;
   RxBool cadiretaSuccess = false.obs;
 
@@ -41,10 +45,12 @@ class HomeScreenController extends GetxController {
   // Variáveis para armazenar dados enviados às tabelas PostgreSQL
   // ignore: prefer_final_fields
   List<Map<String, dynamic>> _sentCadiretaData = [];
+  String? _lastSavedCadire2Json;
 
   // Getters para acessar os dados enviados
   List<Map<String, dynamic>> get sentCadiretaData =>
       List.unmodifiable(_sentCadiretaData);
+  String? get lastSavedCadire2Json => _lastSavedCadire2Json;
 
   @override
   void onInit() {
@@ -151,6 +157,65 @@ class HomeScreenController extends GetxController {
     update();
   }
 
+  void _initLoadProgressSteps({int totalItems = 0}) {
+    loadProgressSteps.value = [
+      ProgressStep(label: 'Analisando XML', status: StepStatus.pending),
+      ProgressStep(label: 'Extraindo dados', status: StepStatus.pending),
+      ProgressStep(
+        label: totalItems > 0 ? 'Processando item 0 de $totalItems' : 'Processando itens',
+        status: StepStatus.pending,
+      ),
+      ProgressStep(
+        label: 'Buscando descrições no PostgreSQL',
+        status: StepStatus.pending,
+      ),
+      ProgressStep(label: 'Finalizando', status: StepStatus.pending),
+    ];
+  }
+
+  void _updateLoadStep(int index, StepStatus status, {String? label}) {
+    if (index >= 0 && index < loadProgressSteps.length) {
+      final step = loadProgressSteps[index];
+      loadProgressSteps[index] = step.copyWith(
+        status: status,
+        label: label ?? step.label,
+      );
+    }
+  }
+
+  void _initSaveProgressSteps({int totalModules = 0, bool includeCadire2 = false}) {
+    saveProgressSteps.value = [
+      ProgressStep(label: 'Verificando estrutur...', status: StepStatus.pending),
+      ProgressStep(
+        label: totalModules > 0
+            ? 'Processando módulo 0 de $totalModules'
+            : 'Processando módulos',
+        status: StepStatus.pending,
+      ),
+      ProgressStep(
+        label: 'Excluindo tabelas cadireta e cadiredi',
+        status: StepStatus.pending,
+      ),
+      ProgressStep(
+        label: 'Inserindo cadireta e cadiredi',
+        status: StepStatus.pending,
+      ),
+      if (includeCadire2)
+        ProgressStep(label: 'Inserindo cadire2', status: StepStatus.pending),
+      ProgressStep(label: 'Finalizando', status: StepStatus.pending),
+    ];
+  }
+
+  void _updateSaveStep(int index, StepStatus status, {String? label}) {
+    if (index >= 0 && index < saveProgressSteps.length) {
+      final step = saveProgressSteps[index];
+      saveProgressSteps[index] = step.copyWith(
+        status: status,
+        label: label ?? step.label,
+      );
+    }
+  }
+
   var outliteData = Rxn<Outlite>();
   var distintatLines =
       RxMap<
@@ -164,17 +229,34 @@ class HomeScreenController extends GetxController {
     try {
       isLoading.value = true;
       statusMessage.value = 'Analisando arquivo XML...';
-      final parsedXml = XmlDocument.parse(xmlString);
-      await extractData(parsedXml, fileName);
+
+      // Obter total de itens para progresso
+      final preParsed = XmlDocument.parse(xmlString);
+      final righes = preParsed.findAllElements('RIGHE').toList();
+      final totalItems = righes.isNotEmpty
+          ? righes.first.children.whereType<XmlElement>().length
+          : 0;
+
+      _initLoadProgressSteps(totalItems: totalItems);
+
+      _updateLoadStep(0, StepStatus.current); // Analisando XML
+      _updateLoadStep(0, StepStatus.done);
+
+      await extractData(preParsed, fileName);
+
+      _updateLoadStep(4, StepStatus.done); // Finalizando
       statusMessage.value = 'Importado com sucesso...';
       isLoading.value = false;
     } catch (e) {
       //TODO: Criar gestão caso não leia o xml
+      isLoading.value = false;
     }
   }
 
   Future<void> extractData(XmlDocument parsedXml, String fileName) async {
     statusMessage.value = 'Extraindo dados do XML...';
+    _updateLoadStep(1, StepStatus.current); // Extraindo dados
+
     final testas = parsedXml.findAllElements('TESTA');
     final righes = parsedXml.findAllElements('RIGHE').toList();
     String codMestre = '';
@@ -182,12 +264,16 @@ class HomeScreenController extends GetxController {
     if (testas.isNotEmpty && righes.isNotEmpty) {
       final testa = testas.first;
       final righeElement = righes.first;
+      final righeList = righeElement.children.whereType<XmlElement>().toList();
 
       // Ler CODPAIPED antes de criar o outlite
       codMestre =
           parsedXml.findAllElements('CODPAIPED').isNotEmpty
               ? parsedXml.findAllElements('CODPAIPED').first.innerText
               : '6.8.0.0108';
+
+      _updateLoadStep(1, StepStatus.done);
+      _updateLoadStep(2, StepStatus.current); // Processando itens
 
       final outlite = Outlite(
         data:
@@ -217,7 +303,15 @@ class HomeScreenController extends GetxController {
               .map((node) => node.text)
               .first;*/
 
-      for (final riga in righeElement.children.whereType<XmlElement>()) {
+      for (var i = 0; i < righeList.length; i++) {
+        final riga = righeList[i];
+        _updateLoadStep(
+          2,
+          StepStatus.current,
+          label: 'Processando item ${i + 1} de ${righeList.length}',
+        );
+        _updateLoadStep(3, StepStatus.current); // Buscando descrições
+
         final distintatElement = riga.findElements('DISTINTAT');
         final dettprezzoElement = riga.findElements('DETTPREZZO');
         final codigo =
@@ -284,8 +378,15 @@ class HomeScreenController extends GetxController {
         );
       }
 
+      _updateLoadStep(2, StepStatus.done);
+      _updateLoadStep(3, StepStatus.done);
+      _updateLoadStep(4, StepStatus.current); // Finalizando
+
       outlite.itembox = itemBoxList;
       outliteData.value = outlite;
+    } else {
+      _updateLoadStep(1, StepStatus.done);
+      _updateLoadStep(4, StepStatus.current);
     }
   }
 
@@ -395,6 +496,107 @@ class HomeScreenController extends GetxController {
     }
     distintatSplited.clear();
     return itemPecas;
+  }
+
+  /// Envia Outlite para ForWood (cadireta, cadiredi e cadire2).
+  /// Usado no Fluxo 5 (enviar para produção a partir da lista de XMLs importados).
+  Future<bool> enviarOutliteParaForWood(Outlite outlite) async {
+    saveCadiretaLoading.value = true;
+    final totalModules = outlite.itembox?.length ?? 0;
+    _initSaveProgressSteps(totalModules: totalModules, includeCadire2: true);
+
+    final numeroPedido = outlite.numero ?? '';
+    initPedidoLog(numeroPedido);
+
+    try {
+      await saveCadireta(
+        outlite,
+        progressAlreadyInited: true,
+        skipFinalStep: true,
+      );
+
+      if (saveOKCadireta.isNotEmpty) {
+        saveCadiretaLoading.value = false;
+        return false;
+      }
+
+      // Inserir CADIRE2 (informações de produção)
+      _updateSaveStep(4, StepStatus.current, label: 'Inserindo cadire2');
+      await _saveCadire2(outlite);
+      _updateSaveStep(4, StepStatus.done);
+      _updateSaveStep(5, StepStatus.done);
+
+      saveCadiretaLoading.value = false;
+      return cadiretaSuccess.value;
+    } catch (e) {
+      saveCadiretaLoading.value = false;
+      rethrow;
+    }
+  }
+
+  /// Aplica numeroFabricacao ao Outlite e atualiza matrículas nos ItemPecas/ItemPrice.
+  void aplicarNumeroFabricacaoAoOutlite(Outlite outlite, String numeroFabricacao) {
+    outlite.numeroFabricacao = numeroFabricacao;
+    for (final box in outlite.itembox ?? []) {
+      for (final pec in box.itemPecas ?? []) {
+        if (pec.matricula != null && pec.matricula!.isNotEmpty) {
+          pec.matricula = formatMatricula(
+            numeroFabricacao,
+            extractMatricola(pec.matricula),
+          );
+        }
+      }
+      for (final price in box.itemPrice ?? []) {
+        if (price.matricula != null && price.matricula!.isNotEmpty) {
+          price.matricula = formatMatricula(
+            numeroFabricacao,
+            extractMatricola(price.matricula),
+          );
+        }
+      }
+    }
+  }
+
+  /// Constrói e salva registros CADIRE2 a partir do Outlite.
+  Future<void> _saveCadire2(Outlite outlite) async {
+    final cadinfprod = outlite.numeroFabricacao ?? outlite.numero ?? '';
+    if (cadinfprod.isEmpty) return;
+
+    await homeScreenRepository.deleteCadire2ByProject(cadinfprod);
+
+    final lista = _buildCadire2List(outlite);
+    _lastSavedCadire2Json = jsonEncode(lista.map((c) => c.toMap()).toList());
+    int seq = 1;
+    for (final c2 in lista) {
+      final err = await homeScreenRepository.saveCadire2(c2, seq, 'cadire2');
+      if (err.isNotEmpty) saveOKCadireta.add(err);
+      seq++;
+    }
+  }
+
+  /// Monta lista de Cadire2 a partir do Outlite (ItemBox -> ItemPecas).
+  List<Cadire2> _buildCadire2List(Outlite outlite) {
+    final cadinfprod = outlite.numeroFabricacao ?? outlite.numero ?? '';
+    final lista = <Cadire2>[];
+    int cadinfcont = 1;
+    int cadinfseq = 1;
+
+    for (final box in outlite.itembox ?? []) {
+      for (final pec in box.itemPecas ?? []) {
+        lista.add(
+          Cadire2(
+            cadinfcont: cadinfcont,
+            cadinfprod: cadinfprod,
+            cadinfseq: cadinfseq,
+            cadinfdes: pec.idpeca ?? pec.codpeca ?? '',
+            cadinfinf: pec.codpeca ?? '',
+          ),
+        );
+        cadinfcont++;
+        cadinfseq++;
+      }
+    }
+    return lista;
   }
 
   Future<void> saveDataBase({Outlite? outlite, String? xmlString}) async {
@@ -607,12 +809,130 @@ class HomeScreenController extends GetxController {
     }
   }
 
-  Future<void> saveCadireta(Outlite outlite) async {
+  /// Collects expected child codes for an ItemBox: itemPecas.codpeca + CODFIG from expanded structure.
+  Future<Set<String>> _getExpectedFilhosForItemBox(ItemBox oi) async {
+    final filhos = <String>{};
+
+    for (final itemPeca in oi.itemPecas ?? []) {
+      final cod = (itemPeca.codpeca ?? '').trim().toUpperCase();
+      if (cod.isNotEmpty) filhos.add(cod);
+
+      if (itemPeca.codpeca != null &&
+          itemPeca.codpeca!.isNotEmpty &&
+          double.tryParse(itemPeca.comprimento ?? '') != null &&
+          double.tryParse(itemPeca.largura ?? '') != null &&
+          double.tryParse(itemPeca.espessura ?? '') != null &&
+          double.parse(itemPeca.comprimento!) >= 0 &&
+          double.parse(itemPeca.largura!) >= 0 &&
+          double.parse(itemPeca.espessura!) >= 0) {
+        final result = await getEstruturaExpandida(
+          itemPeca.codpeca!,
+          itemPeca.variaveis ?? '',
+          itemPeca.comprimento!,
+          itemPeca.largura!,
+          itemPeca.espessura!,
+        );
+        if (result.isNotEmpty && result != 'Erro') {
+          try {
+            final estrutura =
+                List<Map<String, dynamic>>.from(json.decode(result));
+            for (final item in estrutura) {
+              final codfig = item['CODFIG']?.toString().trim();
+              if (codfig != null && codfig.isNotEmpty) {
+                filhos.add(codfig.toUpperCase());
+              }
+            }
+          } catch (_) {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+
+    filhos.removeWhere((s) => s.isEmpty);
+    return filhos;
+  }
+
+  /// Compares two sets of child codes (order-independent).
+  bool _filhosIguais(Set<String> a, List<String> b) {
+    final bSet = b.map((s) => s.trim().toUpperCase()).where((s) => s.isNotEmpty).toSet();
+    if (a.length != bSet.length) return false;
+    final aNorm = a.map((s) => s.trim().toUpperCase()).toSet();
+    return aNorm.containsAll(bSet) && bSet.containsAll(aNorm);
+  }
+
+  Future<void> saveCadireta(
+    Outlite outlite, {
+    bool progressAlreadyInited = false,
+    bool skipFinalStep = false,
+  }) async {
     // Limpar dados anteriores
     _sentCadiretaData.clear();
 
+    final totalModules = outlite.itembox?.length ?? 0;
+    if (!progressAlreadyInited) {
+      _initSaveProgressSteps(totalModules: totalModules);
+    }
+
+    _updateSaveStep(0, StepStatus.current); // Verificando estrutur
+
+    final prefs = await SharedPreferences.getInstance();
+    final codbatismocorte = prefs.getString('codbatismocorte') ?? '4.1.';
+    final codbatismomodulo = prefs.getString('codbatismomodulo') ?? '52';
+
+    // Fase 1: Determinar codpai para cada ItemBox (reutilizar ou ESP0019)
+    final List<String> codpaiPorModulo = [];
+
+    for (var i = 0; i < (outlite.itembox ?? []).length; i++) {
+      final oi = outlite.itembox![i];
+      _updateSaveStep(
+        1,
+        StepStatus.current,
+        label: 'Processando módulo ${i + 1} de $totalModules',
+      );
+
+      final expectedFilhos = await _getExpectedFilhosForItemBox(oi);
+      final existe = await homeScreenRepository.estprodutoExisteEmEstrutur(
+        oi.codigo ?? '',
+      );
+
+      String codpai;
+      if (existe) {
+        final dbFilhos =
+            await homeScreenRepository.getFilhosFromEstrutur(oi.codigo ?? '');
+        if (_filhosIguais(expectedFilhos, dbFilhos)) {
+          codpai = oi.codigo ?? '';
+        } else {
+          codpai = await executaEspecialESP0019(
+            codbatismocorte,
+            500,
+            8,
+            i + 1,
+            'P',
+          );
+        }
+      } else {
+        codpai = await executaEspecialESP0019(
+          codbatismocorte,
+          500,
+          8,
+          i + 1,
+          'P',
+        );
+      }
+      codpaiPorModulo.add(codpai);
+    }
+
+    _updateSaveStep(0, StepStatus.done);
+    _updateSaveStep(1, StepStatus.done);
+    _updateSaveStep(2, StepStatus.current); // Excluindo tabelas
+
     await homeScreenRepository.deleteCadireta();
     await homeScreenRepository.deleteCadiredi();
+
+    _updateSaveStep(2, StepStatus.done);
+    _updateSaveStep(3, StepStatus.current); // Inserindo cadireta e cadiredi
+
     int contadorPai = 0;
     int contadorFilho = 0;
     int contadorItemPeca = 1;
@@ -625,22 +945,13 @@ class HomeScreenController extends GetxController {
     List<Cadireta> listPai = [];
     List<Cadireta> listFilho = [];
     List<Map<String, dynamic>> listaPaiMap = [];
-    // Obter o valor de codbatismomodulo do SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    final codbatismocorte = prefs.getString('codbatismocorte') ?? '4.1.';
 
     // Salva os dados do pai
-    for (var oi in outlite.itembox!) {
+    for (var idx = 0; idx < (outlite.itembox ?? []).length; idx++) {
+      final oi = outlite.itembox![idx];
       contadorPai = contadorPai + 1;
-      // var codpai = oi.codigo ?? '';
       var despai = oi.des ?? '';
-      var codpai = await executaEspecialESP0019(
-        codbatismocorte,
-        500,
-        8,
-        contadorPai,
-        'P',
-      );
+      final codpai = codpaiPorModulo[idx];
       Cadireta cadiretaPaiPedido = Cadireta(
         cadcont: 1,
         cadpai: outlite.codpai,
@@ -708,10 +1019,6 @@ class HomeScreenController extends GetxController {
         if (double.parse(itemPeca.comprimento!) >= 0 &&
             double.parse(itemPeca.largura!) >= 0 &&
             double.parse(itemPeca.espessura!) >= 0) {
-          // Obter o valor de codbatismomodulo do SharedPreferences
-          final prefs = await SharedPreferences.getInstance();
-          final codbatismomodulo = prefs.getString('codbatismomodulo') ?? '52';
-
           codpeca = await executaEspecialESP0019(
             codbatismomodulo,
             500,
@@ -956,6 +1263,11 @@ class HomeScreenController extends GetxController {
     }
 
     // List<Cadireta> listaCompleta = [...listPaiPedido, ...listPai, ...listFilho];
+
+    _updateSaveStep(3, StepStatus.done);
+    if (!skipFinalStep) {
+      _updateSaveStep(4, StepStatus.done); // Finalizando
+    }
 
     if (saveOKCadireta.isNotEmpty) {
       cadiretaSuccess.value = false;
