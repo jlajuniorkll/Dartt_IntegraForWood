@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:dartt_integraforwood/debug_agent_log.dart';
 import 'package:dartt_integraforwood/Models/outlite.dart';
 import 'package:dartt_integraforwood/Pages/common/widget_loader.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/controller/home_screen_controller.dart';
@@ -12,6 +11,314 @@ import 'package:get/get.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+Widget _metaChip(
+  ThemeData theme,
+  IconData icon,
+  String label,
+  String value,
+) {
+  final cs = theme.colorScheme;
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Icon(icon, size: 18, color: cs.primary.withValues(alpha: 0.8)),
+      const SizedBox(width: 8),
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              letterSpacing: 0.2,
+            ),
+          ),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+double _parseDimDetail(String? s) =>
+    double.tryParse(s?.replaceAll(',', '.').trim() ?? '') ?? 0;
+
+Size _bordaPreviewSize(String? comp, String? larg) {
+  const maxSide = 52.0;
+  final c = _parseDimDetail(comp);
+  final l = _parseDimDetail(larg);
+  if (c <= 0 && l <= 0) return const Size(12, 12);
+  final w = (c / 10).clamp(10.0, maxSide);
+  final h = (l / 10).clamp(10.0, maxSide);
+  return Size(w, h);
+}
+
+Widget _detailTableHeaderCell(String text, ThemeData theme) {
+  final cs = theme.colorScheme;
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+    child: Text(
+      text,
+      style: theme.textTheme.labelLarge?.copyWith(
+        fontWeight: FontWeight.w800,
+        color: cs.onSurface,
+      ),
+    ),
+  );
+}
+
+Widget _detailTableDataCell(Widget child, ThemeData theme) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+    child: DefaultTextStyle.merge(
+      style: theme.textTheme.bodyMedium,
+      child: child,
+    ),
+  );
+}
+
+TableBorder _detailTableBorder(ColorScheme cs) {
+  final b = BorderSide(color: cs.outlineVariant.withValues(alpha: 0.55));
+  return TableBorder(
+    top: b,
+    left: b,
+    right: b,
+    bottom: b,
+    horizontalInside: b,
+    verticalInside: b,
+  );
+}
+
+/// Largura total explícita: dentro de scroll horizontal o `Table` recebe largura
+/// ilimitada e `FlexColumnWidth` colapsa (texto uma letra por linha).
+const double _kCompradosTableWidth = 118 + 320 + 72;
+
+Widget _buildCompradosTable(List<ItemPrice> prices, ThemeData theme) {
+  final cs = theme.colorScheme;
+  return SizedBox(
+    width: _kCompradosTableWidth,
+    child: Table(
+    columnWidths: const {
+      0: FixedColumnWidth(118),
+      1: FixedColumnWidth(320),
+      2: FixedColumnWidth(72),
+    },
+    border: _detailTableBorder(cs),
+    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+    children: [
+      TableRow(
+        decoration: BoxDecoration(color: cs.surfaceContainerHigh),
+        children: [
+          _detailTableHeaderCell('Código', theme),
+          _detailTableHeaderCell('Descrição', theme),
+          _detailTableHeaderCell('Qtd', theme),
+        ],
+      ),
+      for (final itemPrice in prices)
+        TableRow(
+          decoration: BoxDecoration(
+            color: itemPrice.hasErroDescricao
+                ? cs.errorContainer.withValues(alpha: 0.32)
+                : itemPrice.precisaCadastroForWoodUi
+                    ? cs.primaryContainer.withValues(alpha: 0.25)
+                    : null,
+          ),
+          children: [
+            _detailTableDataCell(Text(itemPrice.codigo ?? ''), theme),
+            _detailTableDataCell(
+              itemPrice.precisaCadastroForWoodUi
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${itemPrice.codigo ?? ''} — ${itemPrice.descricaoSqlServer ?? itemPrice.des ?? ''}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          'Atualizar',
+                          style: TextStyle(
+                            color: cs.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Text(itemPrice.des ?? ''),
+              theme,
+            ),
+            _detailTableDataCell(Text(itemPrice.qtd ?? ''), theme),
+          ],
+        ),
+    ],
+    ),
+  );
+}
+
+Widget _buildFabricadosTable({
+  required List<ItemPecas> pecas,
+  required HomeScreenController controller,
+  required BuildContext dialogContext,
+}) {
+  final theme = Theme.of(dialogContext);
+  final cs = theme.colorScheme;
+  const fabricadosW =
+      112 +
+      300 +
+      56 +
+      76 +
+      76 +
+      76 +
+      116 +
+      64 +
+      48;
+  return SizedBox(
+    width: fabricadosW.toDouble(),
+    child: Table(
+    columnWidths: const {
+      0: FixedColumnWidth(112),
+      1: FixedColumnWidth(300),
+      2: FixedColumnWidth(56),
+      3: FixedColumnWidth(76),
+      4: FixedColumnWidth(76),
+      5: FixedColumnWidth(76),
+      6: FixedColumnWidth(116),
+      7: FixedColumnWidth(64),
+      8: FixedColumnWidth(48),
+    },
+    border: _detailTableBorder(cs),
+    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+    children: [
+      TableRow(
+        decoration: BoxDecoration(color: cs.surfaceContainerHigh),
+        children: [
+          _detailTableHeaderCell('Código', theme),
+          _detailTableHeaderCell('Descrição', theme),
+          _detailTableHeaderCell('Qtd', theme),
+          _detailTableHeaderCell('Comp.', theme),
+          _detailTableHeaderCell('Larg.', theme),
+          _detailTableHeaderCell('Esp.', theme),
+          _detailTableHeaderCell('Matrícula', theme),
+          _detailTableHeaderCell('Fita', theme),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Icon(
+                Icons.account_tree_outlined,
+                size: 18,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ],
+      ),
+      for (final itemPecas in pecas)
+        TableRow(
+          decoration: BoxDecoration(
+            color: itemPecas.hasErroDescricao
+                ? cs.errorContainer.withValues(alpha: 0.32)
+                : itemPecas.precisaCadastroForWoodUi
+                    ? cs.primaryContainer.withValues(alpha: 0.22)
+                    : null,
+          ),
+          children: [
+            _detailTableDataCell(Text(itemPecas.codpeca ?? ''), theme),
+            _detailTableDataCell(
+              itemPecas.precisaCadastroForWoodUi
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '${itemPecas.codpeca ?? ''} — ${itemPecas.descricaoSqlServer ?? itemPecas.idpeca ?? ''}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          'Atualizar',
+                          style: TextStyle(
+                            color: cs.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Text(itemPecas.idpeca ?? ''),
+              theme,
+            ),
+            _detailTableDataCell(Text(itemPecas.qta ?? ''), theme),
+            _detailTableDataCell(Text(itemPecas.comprimento ?? ''), theme),
+            _detailTableDataCell(Text(itemPecas.largura ?? ''), theme),
+            _detailTableDataCell(Text(itemPecas.espessura ?? ''), theme),
+            _detailTableDataCell(Text(itemPecas.matricula ?? ''), theme),
+            _detailTableDataCell(
+              SizedBox(
+                width: 52,
+                height: 52,
+                child: Center(
+                  child: CustomPaint(
+                    size: _bordaPreviewSize(
+                      itemPecas.comprimento,
+                      itemPecas.largura,
+                    ),
+                    painter: BordaColoridaPainter(
+                      bordaesq: itemPecas.fitaesq ?? 'N',
+                      bordadir: itemPecas.fitadir ?? 'N',
+                      bordafre: itemPecas.fitafre ?? 'N',
+                      bordatra: itemPecas.fitatra ?? 'N',
+                    ),
+                  ),
+                ),
+              ),
+              theme,
+            ),
+            _detailTableDataCell(
+              IconButton(
+                tooltip: 'Estrutura expandida',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 40,
+                ),
+                onPressed: () async {
+                  final result = await controller.getEstruturaExpandida(
+                    itemPecas.codpeca!,
+                    itemPecas.variaveis!,
+                    itemPecas.comprimento!,
+                    itemPecas.largura!,
+                    itemPecas.espessura!,
+                  );
+                  if (result.isEmpty || result == 'Erro') {
+                    // ignore: use_build_context_synchronously
+                    _mostrarDialogComResultados(dialogContext, []);
+                  } else {
+                    final resultados = List<Map<String, dynamic>>.from(
+                      json.decode(result),
+                    );
+                    // ignore: use_build_context_synchronously
+                    _mostrarDialogComResultados(dialogContext, resultados);
+                  }
+                },
+                icon: const Icon(Icons.add_box_outlined),
+              ),
+              theme,
+            ),
+          ],
+        ),
+    ],
+    ),
+  );
+}
+
 // ignore: must_be_immutable
 class DetailsScreen extends StatelessWidget {
   DetailsScreen({super.key});
@@ -21,9 +328,14 @@ class DetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
     return Scaffold(
+      backgroundColor: cs.surfaceContainerLowest,
       appBar: AppBar(
-        title: Text('Integra ForWood'),
+        title: const Text('Integra ForWood'),
+        centerTitle: false,
         actions: [
           PopupMenuButton(
             itemBuilder:
@@ -61,25 +373,8 @@ class DetailsScreen extends StatelessWidget {
                       leading: Icon(Icons.article_outlined),
                       title: Text('Log do sistema'),
                       onTap: () {
-                        // #region agent log
-                        agentDebugLog(
-                          location: 'details_screen.dart:LogMenu',
-                          message: 'tap Log: pop menu then toNamed',
-                          hypothesisId: 'H1',
-                          runId: 'post-fix',
-                        );
-                        // #endregion
-                        // Fechar o overlay do menu antes de navegar — pop após toNamed removia a rota do log.
                         Navigator.of(context).pop();
                         Get.toNamed(PageRoutes.systemLog);
-                        // #region agent log
-                        agentDebugLog(
-                          location: 'details_screen.dart:LogMenu',
-                          message: 'after toNamed',
-                          hypothesisId: 'H1',
-                          runId: 'post-fix',
-                        );
-                        // #endregion
                       },
                     ),
                   ),
@@ -89,87 +384,96 @@ class DetailsScreen extends StatelessWidget {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Status da conexão SQL Server
               Obx(
-                () => Container(
-                  width: double.infinity,
-                  padding: EdgeInsets.all(12),
-                  margin: EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color:
-                        controller.sqlServerConnected.value
-                            ? Colors.green.shade100
-                            : Colors.red.shade100,
-                    border: Border.all(
+                () => Material(
+                  elevation: 0,
+                  color:
+                      controller.sqlServerConnected.value
+                          ? cs.primaryContainer.withValues(alpha: 0.55)
+                          : cs.errorContainer.withValues(alpha: 0.45),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
                       color:
                           controller.sqlServerConnected.value
-                              ? Colors.green
-                              : Colors.red,
-                      width: 1,
+                              ? cs.primary.withValues(alpha: 0.35)
+                              : cs.error.withValues(alpha: 0.4),
                     ),
-                    borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            controller.sqlServerConnected.value
-                                ? Icons.check_circle
-                                : Icons.error,
-                            color:
-                                controller.sqlServerConnected.value
-                                    ? Colors.green
-                                    : Colors.red,
-                            size: 20,
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              controller.sqlServerConnected.value
+                                  ? Icons.check_circle_rounded
+                                  : Icons.error_outline_rounded,
+                              color:
+                                  controller.sqlServerConnected.value
+                                      ? cs.primary
+                                      : cs.error,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'SQL Server: ${controller.sqlServerStatus.value}',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      controller.sqlServerConnected.value
+                                          ? cs.onPrimaryContainer
+                                          : cs.onErrorContainer,
+                                ),
+                              ),
+                            ),
+                            if (!controller.sqlServerConnected.value)
+                              FilledButton.tonal(
+                                onPressed: () => controller.connectSqlServer(),
+                                child: const Text('Tentar'),
+                              ),
+                          ],
+                        ),
+                        if (controller.sqlServerError.value.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 10),
                             child: Text(
-                              'SQL Server: ${controller.sqlServerStatus.value}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color:
-                                    controller.sqlServerConnected.value
-                                        ? Colors.green.shade800
-                                        : Colors.red.shade800,
+                              controller.sqlServerError.value,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: cs.error,
                               ),
                             ),
                           ),
-                          if (!controller.sqlServerConnected.value)
-                            TextButton(
-                              onPressed: () => controller.connectSqlServer(),
-                              child: Text('Tentar Novamente'),
-                            ),
-                        ],
-                      ),
-                      if (controller.sqlServerError.value.isNotEmpty)
-                        Padding(
-                          padding: EdgeInsets.only(top: 8),
-                          child: Text(
-                            controller.sqlServerError.value,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.red.shade700,
-                            ),
-                          ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-              Center(
-                child: Wrap(
-                  spacing: 8.0, // Espaçamento horizontal entre os botões
-                  runSpacing:
-                      8.0, // Espaçamento vertical entre as linhas de botões
-                  alignment: WrapAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
+              const SizedBox(height: 16),
+              Card(
+                elevation: 0,
+                color: cs.surfaceContainerLow,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 10,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    alignment: WrapAlignment.start,
+                    children: [
+                    FilledButton.icon(
                       onPressed: () async {
                         controller.cadiretaSuccess.value = false;
                         controller.saveOKCadireta.clear();
@@ -190,18 +494,18 @@ class DetailsScreen extends StatelessWidget {
                           controller.loadXML(xmlString!, file.name);
                         }
                       },
-                      icon: Icon(Icons.file_open),
-                      label: Text('Selecionar arquivo XML'),
+                      icon: const Icon(Icons.file_open_outlined),
+                      label: const Text('Abrir XML'),
                     ),
-                    ElevatedButton.icon(
+                    FilledButton.tonalIcon(
                       onPressed: () {
                         Get.toNamed(PageRoutes.importedXmls);
                       },
-                      icon: Icon(Icons.history),
-                      label: Text('Verificar XMLs'),
+                      icon: const Icon(Icons.history),
+                      label: const Text('XMLs importados'),
                     ),
                     Obx(
-                      () => ElevatedButton.icon(
+                      () => FilledButton.icon(
                         onPressed:
                             controller.outliteData.value == null
                                 ? null
@@ -218,12 +522,12 @@ class DetailsScreen extends StatelessWidget {
                                     xmlString: xmlString,
                                   );
                                 },
-                        icon: Icon(Icons.send),
-                        label: Text('Enviar para ForWood'),
+                        icon: const Icon(Icons.send_rounded),
+                        label: const Text('Enviar ForWood'),
                       ),
                     ),
                     Obx(
-                      () => ElevatedButton.icon(
+                      () => FilledButton.tonalIcon(
                         onPressed:
                             controller.outliteData.value == null
                                 ? null
@@ -263,51 +567,51 @@ class DetailsScreen extends StatelessWidget {
                                         ),
                                   );
                                 },
-                        icon: Icon(Icons.print),
-                        label: Text('Imprimir'),
+                        icon: const Icon(Icons.print_outlined),
+                        label: const Text('Imprimir'),
                       ),
                     ),
-                    /*ElevatedButton.icon(
-                      onPressed: () async {
-                        // await controller.sendJob();
-                      },
-                      icon: Icon(Icons.construction),
-                      label: Text('Enviar Job'),
-                    ),*/
                     GetBuilder<HomeScreenController>(
                       builder: (ctl) {
-                        if (ctl.databaseOn) {
-                          return const Text(
-                            'FW On: 🟢',
-                            style: TextStyle(fontSize: 12.0),
-                          );
-                        } else {
-                          return const Text(
-                            'FW Off: 🔴',
-                            style: TextStyle(fontSize: 12.0),
-                          );
-                        }
+                        return Chip(
+                          avatar: Icon(
+                            Icons.storage_outlined,
+                            size: 18,
+                            color: ctl.databaseOn ? cs.primary : cs.error,
+                          ),
+                          label: Text(
+                            ctl.databaseOn ? 'ForWood OK' : 'ForWood off',
+                            style: theme.textTheme.labelMedium,
+                          ),
+                          backgroundColor: cs.surfaceContainerHighest,
+                          side: BorderSide.none,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        );
                       },
                     ),
                     GetBuilder<HomeScreenController>(
                       builder: (ctl) {
-                        if (ctl.databasePro) {
-                          return const Text(
-                            '3Cad On: 🟢',
-                            style: TextStyle(fontSize: 12.0),
-                          );
-                        } else {
-                          return const Text(
-                            '3Cad Off: 🔴',
-                            style: TextStyle(fontSize: 12.0),
-                          );
-                        }
+                        return Chip(
+                          avatar: Icon(
+                            Icons.dns_outlined,
+                            size: 18,
+                            color: ctl.databasePro ? cs.primary : cs.error,
+                          ),
+                          label: Text(
+                            ctl.databasePro ? '3CAD OK' : '3CAD off',
+                            style: theme.textTheme.labelMedium,
+                          ),
+                          backgroundColor: cs.surfaceContainerHighest,
+                          side: BorderSide.none,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                        );
                       },
                     ),
                   ],
                 ),
+                ),
               ),
-              SizedBox(height: 16),
+              const SizedBox(height: 16),
               Obx(() {
                 final outlite = controller.outliteData.value;
                 if (controller.isLoading.value) {
@@ -375,16 +679,71 @@ class DetailsScreen extends StatelessWidget {
                 }
                 if (outlite != null && controller.saveOKCadireta.isEmpty) {
                   return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text('Data: ${outlite.data ?? 'N/A'}'),
-                      Text('Número: ${outlite.numero ?? 'N/A'}'),
-                      Text('RIF: ${outlite.rif}'),
-                      Text('Pai: ${outlite.codpai}'),
+                      Card(
+                        elevation: 0,
+                        color: cs.surfaceContainerLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(
+                            color: cs.outlineVariant.withValues(alpha: 0.45),
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Pedido',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                  color: cs.primary,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 20,
+                                runSpacing: 8,
+                                children: [
+                                  _metaChip(
+                                    theme,
+                                    Icons.calendar_today_outlined,
+                                    'Data',
+                                    outlite.data ?? 'N/A',
+                                  ),
+                                  _metaChip(
+                                    theme,
+                                    Icons.tag_outlined,
+                                    'Número',
+                                    outlite.numero ?? 'N/A',
+                                  ),
+                                  _metaChip(
+                                    theme,
+                                    Icons.description_outlined,
+                                    'RIF',
+                                    outlite.rif,
+                                  ),
+                                  _metaChip(
+                                    theme,
+                                    Icons.account_tree_outlined,
+                                    'Pai',
+                                    outlite.codpai,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       if (outlite.itembox != null)
-                        ListView.builder(
+                        ListView.separated(
                           shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
                           itemCount: outlite.itembox!.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
                           itemBuilder: (_, index) {
                             final qtdfinal = multiplicaQtd(
                               outlite.itembox![index].qta!,
@@ -394,89 +753,128 @@ class DetailsScreen extends StatelessWidget {
                             final hasErros = itemBox.totalErrosCount > 0;
                             final hasPend =
                                 itemBox.totalPendentesCadastroCount > 0;
-                            return Card(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: hasErros
-                                      ? Border.all(
-                                          color: Colors.red.shade300,
-                                          width: 2,
-                                        )
-                                      : null,
-                                  borderRadius: BorderRadius.circular(4),
+                            return Material(
+                              elevation: 0,
+                              color: cs.surface,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                side: BorderSide(
+                                  color: hasErros
+                                      ? cs.error.withValues(alpha: 0.65)
+                                      : cs.outlineVariant.withValues(alpha: 0.55),
+                                  width: hasErros ? 1.5 : 1,
+                                ),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  14,
+                                  12,
+                                  12,
+                                  12,
                                 ),
                                 child: Column(
-                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    ListTile(
-                                      title: Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              'Pai: ${itemBox.codigo} - ${itemBox.des ?? 'N/A'} - ${qtdfinal ?? 'N/A'} - Dim: ${itemBox.l ?? 'N/A'}x${itemBox.a ?? 'N/A'}x${itemBox.p ?? 'N/A'}',
-                                            ),
+                                    Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                itemBox.des ?? 'Sem descrição',
+                                                style: theme
+                                                    .textTheme
+                                                    .titleSmall
+                                                    ?.copyWith(
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                'Código ${itemBox.codigo ?? ''} · Qtd $qtdfinal · ${itemBox.l ?? '—'}×${itemBox.a ?? '—'}×${itemBox.p ?? '—'} mm',
+                                                style: theme
+                                                    .textTheme
+                                                    .bodySmall
+                                                    ?.copyWith(
+                                                      color:
+                                                          cs.onSurfaceVariant,
+                                                    ),
+                                              ),
+                                            ],
                                           ),
-                                          if (hasErros)
-                                            Tooltip(
+                                        ),
+                                        if (hasErros)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              left: 8,
+                                            ),
+                                            child: Tooltip(
                                               message:
-                                                  '${itemBox.errosProducaoCount} erro(s) em produção, ${itemBox.errosCompraCount} erro(s) em compra',
+                                                  '${itemBox.errosProducaoCount} erro(s) produção, ${itemBox.errosCompraCount} erro(s) compra',
                                               child: Chip(
                                                 avatar: Icon(
                                                   Icons.warning_amber_rounded,
-                                                  color: Colors.red.shade800,
+                                                  color: cs.error,
                                                   size: 18,
                                                 ),
                                                 label: Text(
                                                   '${itemBox.totalErrosCount} erro(s)',
-                                                  style: TextStyle(
-                                                    color: Colors.red.shade800,
-                                                    fontSize: 12,
-                                                  ),
+                                                  style: theme
+                                                      .textTheme
+                                                      .labelMedium
+                                                      ?.copyWith(
+                                                        color: cs.error,
+                                                      ),
                                                 ),
-                                                backgroundColor: Colors.red.shade100,
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 4,
-                                                ),
+                                                backgroundColor: cs.errorContainer
+                                                    .withValues(alpha: 0.5),
+                                                side: BorderSide.none,
+                                                visualDensity:
+                                                    VisualDensity.compact,
                                               ),
                                             ),
-                                          if (hasPend) ...[
-                                            if (hasErros) SizedBox(width: 6),
-                                            Tooltip(
-                                              message:
-                                                  'Itens existentes no SQL Server; cadastre no PostgreSQL/ForWood',
-                                              child: Chip(
-                                                avatar: Icon(
-                                                  Icons.edit_note_rounded,
-                                                  color: Colors.green.shade800,
-                                                  size: 18,
-                                                ),
-                                                label: Text(
-                                                  '${itemBox.totalPendentesCadastroCount} Atualizar',
-                                                  style: TextStyle(
-                                                    color: Colors.green.shade800,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                                backgroundColor:
-                                                    Colors.green.shade100,
-                                                padding: EdgeInsets.symmetric(
-                                                  horizontal: 8,
-                                                  vertical: 4,
-                                                ),
+                                          ),
+                                        if (hasPend) ...[
+                                          if (hasErros)
+                                            const SizedBox(width: 6),
+                                          Tooltip(
+                                            message:
+                                                'Cadastrar no PostgreSQL/ForWood',
+                                            child: Chip(
+                                              avatar: Icon(
+                                                Icons.edit_note_rounded,
+                                                color: cs.primary,
+                                                size: 18,
                                               ),
+                                              label: Text(
+                                                '${itemBox.totalPendentesCadastroCount} atualizar',
+                                                style: theme
+                                                    .textTheme
+                                                    .labelMedium
+                                                    ?.copyWith(
+                                                      color: cs.primary,
+                                                    ),
+                                              ),
+                                              backgroundColor: cs
+                                                  .primaryContainer
+                                                  .withValues(alpha: 0.45),
+                                              side: BorderSide.none,
+                                              visualDensity:
+                                                  VisualDensity.compact,
                                             ),
-                                          ],
+                                          ),
                                         ],
-                                      ),
+                                      ],
                                     ),
-                                  Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: <Widget>[
-                                        TextButton(
-                                          child: const Text('PRODUZIDOS'),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                      children: [
+                                        FilledButton.tonalIcon(
                                           onPressed: () {
                                             widgetproduzidos(
                                               context,
@@ -484,10 +882,14 @@ class DetailsScreen extends StatelessWidget {
                                               index,
                                             );
                                           },
+                                          icon: const Icon(
+                                            Icons.precision_manufacturing,
+                                            size: 20,
+                                          ),
+                                          label: const Text('Fabricados'),
                                         ),
                                         const SizedBox(width: 8),
-                                        TextButton(
-                                          child: const Text('COMPRADOS'),
+                                        OutlinedButton.icon(
                                           onPressed: () {
                                             widgetcomprados(
                                               context,
@@ -495,15 +897,18 @@ class DetailsScreen extends StatelessWidget {
                                               index,
                                             );
                                           },
+                                          icon: const Icon(
+                                            Icons.shopping_cart_outlined,
+                                            size: 20,
+                                          ),
+                                          label: const Text('Comprados'),
                                         ),
-                                        const SizedBox(width: 8),
                                       ],
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          );
+                            );
                           },
                         ),
                     ],
@@ -520,169 +925,37 @@ class DetailsScreen extends StatelessWidget {
   }
 
   void widgetcomprados(BuildContext context, Outlite outlite, int index) {
+    final prices = outlite.itembox![index].itemPrice ?? [];
     showDialog<String>(
       context: context,
-      builder:
-          (BuildContext context) => Dialog.fullscreen(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Center(
-                      child: Text(
-                        "Itens Comprados",
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    if (outlite
-                        .itembox![index]
-                        .itemPrice!
-                        .isEmpty) // Verifica se há linhas para este código
-                      Column(children: [Text("Erro ao carregar peças")]),
-                    if (outlite
-                        .itembox![index]
-                        .itemPrice!
-                        .isNotEmpty) // Verifica se há linhas para este código
-                      for (var itemPrice in outlite.itembox![index].itemPrice!)
-                        Card(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            // Exibe as linhas de DISTINTAT
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Row(
-                                  children: [
-                                    Table(
-                                      border: TableBorder.all(),
-                                      columnWidths:
-                                          const <int, TableColumnWidth>{
-                                            0: IntrinsicColumnWidth(),
-                                            1: IntrinsicColumnWidth(),
-                                            2: IntrinsicColumnWidth(),
-                                          },
-                                      defaultVerticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      children: <TableRow>[
-                                        TableRow(
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[200],
-                                          ),
-                                          children: <Widget>[
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Código'),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Descrição'),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Qtd'),
-                                            ),
-                                          ],
-                                        ),
-                                        TableRow(
-                                          decoration: BoxDecoration(
-                                            color: itemPrice.hasErroDescricao
-                                                ? Colors.red.shade100
-                                                : itemPrice.precisaCadastroForWoodUi
-                                                    ? Colors.green.shade50
-                                                    : Colors.white,
-                                          ),
-                                          children: <Widget>[
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text(
-                                                itemPrice.codigo ?? '',
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child:
-                                                  itemPrice.precisaCadastroForWoodUi
-                                                      ? Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            Text(
-                                                              '${itemPrice.codigo ?? ''} — ${itemPrice.descricaoSqlServer ?? itemPrice.des ?? ''}',
-                                                              style:
-                                                                  const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w500,
-                                                              ),
-                                                            ),
-                                                            Text(
-                                                              'Atualizar',
-                                                              style: TextStyle(
-                                                                color: Colors
-                                                                    .green
-                                                                    .shade800,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                fontSize: 12,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        )
-                                                      : Text(
-                                                          itemPrice.des ?? '',
-                                                        ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text(itemPrice.qtd ?? ''),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                    /*Text(
-                                      'Cod: ${itemPrice.codigo}, ${itemPrice.qtd}',
-                                    ),*/
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    const SizedBox(height: 15),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Fechar'),
-                    ),
-                  ],
-                ),
-              ),
+      builder: (ctx) => Dialog.fullscreen(
+        child: Scaffold(
+          backgroundColor: Theme.of(ctx).colorScheme.surface,
+          appBar: AppBar(
+            title: const Text('Itens comprados'),
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(ctx),
             ),
           ),
+          body: prices.isEmpty
+              ? Center(
+                  child: Text(
+                    'Nenhuma linha de compra para este módulo.',
+                    style: Theme.of(ctx).textTheme.bodyLarge,
+                  ),
+                )
+              : Scrollbar(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    scrollDirection: Axis.horizontal,
+                    child: SingleChildScrollView(
+                      child: _buildCompradosTable(prices, Theme.of(ctx)),
+                    ),
+                  ),
+                ),
+        ),
+      ),
     );
   }
 
@@ -691,282 +964,41 @@ class DetailsScreen extends StatelessWidget {
     Outlite outlite,
     int index,
   ) {
+    final pecas = outlite.itembox![index].itemPecas ?? [];
     return showDialog<String>(
       context: context,
-      builder:
-          (BuildContext context) => Dialog.fullscreen(
-            child: Padding(
-              padding: const EdgeInsets.all(12.0),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.max,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Center(
-                      child: Text(
-                        "Itens Fabricados",
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                    if (outlite
-                        .itembox![index]
-                        .itemPecas!
-                        .isEmpty) // Verifica se há linhas para este código
-                      Column(children: [Text("Erro ao carregar peças")]),
-                    if (outlite
-                        .itembox![index]
-                        .itemPecas!
-                        .isNotEmpty) // Verifica se há linhas para este código
-                      for (var itemPecas in outlite.itembox![index].itemPecas!)
-                        Card(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            // Exibe as linhas de DISTINTAT
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Table(
-                                      border: TableBorder.all(),
-                                      columnWidths:
-                                          const <int, TableColumnWidth>{
-                                            0: IntrinsicColumnWidth(),
-                                            1: IntrinsicColumnWidth(),
-                                            2: IntrinsicColumnWidth(),
-                                            3: IntrinsicColumnWidth(),
-                                            4: IntrinsicColumnWidth(),
-                                            5: IntrinsicColumnWidth(),
-                                            6: IntrinsicColumnWidth(),
-                                          },
-                                      defaultVerticalAlignment:
-                                          TableCellVerticalAlignment.middle,
-                                      children: <TableRow>[
-                                        TableRow(
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[70],
-                                          ),
-                                          children: <Widget>[
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Código'),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Descrição'),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Qtd'),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Comprimento'),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Largura'),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Espessura'),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text('Matricula'),
-                                            ),
-                                          ],
-                                        ),
-                                        TableRow(
-                                          decoration: BoxDecoration(
-                                            color: itemPecas.hasErroDescricao
-                                                ? Colors.red.shade100
-                                                : itemPecas.precisaCadastroForWoodUi
-                                                    ? Colors.green.shade50
-                                                    : Colors.white,
-                                          ),
-                                          children: <Widget>[
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text(
-                                                itemPecas.codpeca ?? '',
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child:
-                                                  itemPecas.precisaCadastroForWoodUi
-                                                      ? Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            Text(
-                                                              '${itemPecas.codpeca ?? ''} — ${itemPecas.descricaoSqlServer ?? itemPecas.idpeca ?? ''}',
-                                                              style:
-                                                                  const TextStyle(
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .w500,
-                                                              ),
-                                                            ),
-                                                            Text(
-                                                              'Atualizar',
-                                                              style: TextStyle(
-                                                                color: Colors
-                                                                    .green
-                                                                    .shade800,
-                                                                fontWeight:
-                                                                    FontWeight
-                                                                        .bold,
-                                                                fontSize: 12,
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        )
-                                                      : Text(
-                                                          itemPecas.idpeca ??
-                                                              '',
-                                                        ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text(itemPecas.qta ?? ''),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text(
-                                                itemPecas.comprimento ?? '',
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text(
-                                                itemPecas.largura ?? '',
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text(
-                                                itemPecas.espessura ?? '',
-                                              ),
-                                            ),
-                                            Padding(
-                                              padding: const EdgeInsets.all(
-                                                8.0,
-                                              ),
-                                              child: Text(
-                                                itemPecas.matricula ?? '',
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                    /*Text(
-                                      'Cod: ${itemPecas.codpeca}, ${itemPecas.qta}, ${itemPecas.comprimento}, ${itemPecas.largura}, ${itemPecas.espessura}, ${itemPecas.fitaesq}, ${itemPecas.fitadir}, ${itemPecas.fitafre}, ${itemPecas.fitatra}, ${itemPecas.trabalhoesq}, ${itemPecas.trabalhodir}, ${itemPecas.trabalhofre}, ${itemPecas.trabalhotra}',
-                                    ),*/
-                                    SizedBox(width: 32),
-                                    CustomPaint(
-                                      size: Size(
-                                        double.parse(
-                                              itemPecas.comprimento ?? '',
-                                            ) /
-                                            10,
-                                        double.parse(itemPecas.largura ?? '') /
-                                            10,
-                                      ),
-                                      painter: BordaColoridaPainter(
-                                        bordaesq: itemPecas.fitaesq ?? 'N',
-                                        bordadir: itemPecas.fitadir ?? 'N',
-                                        bordafre: itemPecas.fitafre ?? 'N',
-                                        bordatra: itemPecas.fitatra ?? 'N',
-                                      ),
-                                    ),
-                                    SizedBox(width: 32),
-                                    IconButton(
-                                      onPressed: () async {
-                                        final result = await controller
-                                            .getEstruturaExpandida(
-                                              itemPecas.codpeca!,
-                                              itemPecas.variaveis!,
-                                              itemPecas.comprimento!,
-                                              itemPecas.largura!,
-                                              itemPecas.espessura!,
-                                            );
-                                        if (result.isEmpty ||
-                                            result == "Erro") {
-                                          _mostrarDialogComResultados(
-                                            // ignore: use_build_context_synchronously
-                                            context,
-                                            [],
-                                          );
-                                        } else {
-                                          List<Map<String, dynamic>>
-                                          resultados =
-                                              List<Map<String, dynamic>>.from(
-                                                json.decode(result),
-                                              );
-                                          _mostrarDialogComResultados(
-                                            // ignore: use_build_context_synchronously
-                                            context,
-                                            resultados,
-                                          );
-                                        }
-                                      },
-                                      icon: Icon(Icons.add_box),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                    const SizedBox(height: 15),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Fechar'),
-                    ),
-                  ],
-                ),
-              ),
+      builder: (ctx) => Dialog.fullscreen(
+        child: Scaffold(
+          backgroundColor: Theme.of(ctx).colorScheme.surface,
+          appBar: AppBar(
+            title: const Text('Itens fabricados'),
+            leading: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.pop(ctx),
             ),
           ),
+          body: pecas.isEmpty
+              ? Center(
+                  child: Text(
+                    'Nenhuma peça fabricada para este módulo.',
+                    style: Theme.of(ctx).textTheme.bodyLarge,
+                  ),
+                )
+              : Scrollbar(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    scrollDirection: Axis.horizontal,
+                    child: SingleChildScrollView(
+                      child: _buildFabricadosTable(
+                        pecas: pecas,
+                        controller: controller,
+                        dialogContext: ctx,
+                      ),
+                    ),
+                  ),
+                ),
+        ),
+      ),
     );
   }
 }

@@ -14,6 +14,7 @@ class XmlImportado {
   String? jsonCadireta;
   String? jsonCadproce;
   String? jsonOutlite;
+  String? jsonCadire2;
   DateTime createdAt;
   DateTime? updatedAt;
 
@@ -30,6 +31,7 @@ class XmlImportado {
     this.jsonCadireta,
     this.jsonCadproce,
     this.jsonOutlite,
+    this.jsonCadire2,
     required this.createdAt,
     this.updatedAt,
   });
@@ -48,6 +50,7 @@ class XmlImportado {
       'jsonCadireta': jsonCadireta,
       'jsonCadproce': jsonCadproce,
       'jsonOutlite': jsonOutlite,
+      'jsonCadire2': jsonCadire2,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt?.millisecondsSinceEpoch,
     };
@@ -67,6 +70,7 @@ class XmlImportado {
       'jsonCadireta': jsonCadireta,
       'jsonCadproce': jsonCadproce,
       'jsonOutlite': jsonOutlite,
+      'jsonCadire2': jsonCadire2,
       'createdAt': createdAt.millisecondsSinceEpoch,
       'updatedAt': updatedAt?.millisecondsSinceEpoch,
     };
@@ -86,6 +90,7 @@ class XmlImportado {
       jsonCadireta: map['jsonCadireta'],
       jsonCadproce: map['jsonCadproce'],
       jsonOutlite: map['jsonOutlite'],
+      jsonCadire2: map['jsonCadire2'],
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt']),
       updatedAt:
           map['updatedAt'] != null
@@ -112,6 +117,7 @@ class XmlImportado {
     String? jsonCadireta,
     String? jsonCadproce,
     String? jsonOutlite,
+    String? jsonCadire2,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -128,6 +134,7 @@ class XmlImportado {
       jsonCadireta: jsonCadireta ?? this.jsonCadireta,
       jsonCadproce: jsonCadproce ?? this.jsonCadproce,
       jsonOutlite: jsonOutlite ?? this.jsonOutlite,
+      jsonCadire2: jsonCadire2 ?? this.jsonCadire2,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );

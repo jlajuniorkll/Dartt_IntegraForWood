@@ -1,23 +1,15 @@
 import 'package:dartt_integraforwood/Pages/system_log/controller/system_log_controller.dart';
-import 'package:dartt_integraforwood/debug_agent_log.dart';
 import 'package:dartt_integraforwood/services/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
-class SystemLogScreen extends GetView<SystemLogController> {
+class SystemLogScreen extends StatelessWidget {
   const SystemLogScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // #region agent log
-    agentDebugLog(
-      location: 'system_log_screen.dart:build',
-      message: 'SystemLogScreen.build',
-      hypothesisId: 'H5',
-    );
-    // #endregion
-    final c = controller;
+    final c = Get.find<SystemLogController>();
 
     Color levelColor(AppLogLevel l) {
       switch (l) {

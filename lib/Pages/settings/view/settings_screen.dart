@@ -1,4 +1,3 @@
-import 'package:dartt_integraforwood/debug_agent_log.dart';
 import 'package:dartt_integraforwood/Pages/settings/controller/settings_controller.dart';
 import 'package:dartt_integraforwood/Routes/app_routes.dart';
 import 'package:flutter/material.dart';
@@ -105,13 +104,6 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  // #region agent log
-                  agentDebugLog(
-                    location: 'settings_screen.dart:LogTile',
-                    message: 'settings ListTile tap system log',
-                    hypothesisId: 'H1',
-                  );
-                  // #endregion
                   Get.toNamed(PageRoutes.systemLog);
                 },
               ),

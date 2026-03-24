@@ -659,6 +659,22 @@ class HomeScreenController extends GetxController {
     return lista;
   }
 
+  /// Pré-visualização das linhas CADIRE2 que serão gravadas (mesma lógica de [_saveCadire2]).
+  Future<List<Map<String, dynamic>>> previewCadire2MapsForOutlite(
+    Outlite outlite,
+  ) async {
+    final cadinfprod = outlite.numeroFabricacao ?? outlite.numero ?? '';
+    if (cadinfprod.isEmpty) return [];
+    final maxCounters =
+        await homeScreenRepository.getCadire2MaxCountersForProd(cadinfprod);
+    final lista = _buildCadire2List(
+      outlite,
+      startCadinfseq: maxCounters.seq + 1,
+      startCadinfcont: maxCounters.cont + 1,
+    );
+    return lista.map((c) => c.toMap()).toList();
+  }
+
   /// Se houver erros ou itens "Atualizar", pergunta se o usuário deseja enviar assim mesmo.
   /// Retorna `true` para prosseguir com o envio.
   Future<bool> confirmarEnvioParaForWoodSeNecessario(Outlite outlite) async {
@@ -1036,6 +1052,7 @@ class HomeScreenController extends GetxController {
   }) async {
     // Limpar dados anteriores
     _sentCadiretaData.clear();
+    saveOKCadireta.clear();
 
     final totalModules = outlite.itembox?.length ?? 0;
     if (!progressAlreadyInited) {

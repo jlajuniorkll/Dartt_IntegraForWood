@@ -400,6 +400,8 @@ class XmlImportadoService {
       jsonCadiredi: xmlImportado.jsonCadiredi,
       jsonCadireta: xmlImportado.jsonCadireta,
       jsonCadproce: xmlImportado.jsonCadproce,
+      jsonOutlite: xmlImportado.jsonOutlite,
+      jsonCadire2: xmlImportado.jsonCadire2,
       revisao: nextRevision,
       createdAt: DateTime.now(), // Adicionar timestamp atual
     );

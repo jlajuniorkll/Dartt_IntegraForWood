@@ -1,4 +1,3 @@
-import 'package:dartt_integraforwood/debug_agent_log.dart';
 import 'package:dartt_integraforwood/services/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,13 +14,6 @@ class SystemLogController extends GetxController {
 
   @override
   void onInit() {
-    // #region agent log
-    agentDebugLog(
-      location: 'system_log_controller.dart:onInit',
-      message: 'SystemLogController.onInit',
-      hypothesisId: 'H4',
-    );
-    // #endregion
     super.onInit();
     searchController.addListener(() {
       searchText.value = searchController.text;
@@ -38,13 +30,6 @@ class SystemLogController extends GetxController {
 
   @override
   void onClose() {
-    // #region agent log
-    agentDebugLog(
-      location: 'system_log_controller.dart:onClose',
-      message: 'SystemLogController.onClose',
-      hypothesisId: 'H1',
-    );
-    // #endregion
     searchController.dispose();
     scrollController.dispose();
     super.onClose();

@@ -5,14 +5,17 @@ import 'package:get/get.dart';
 
 import '../../../Models/outlite.dart';
 import '../../../Models/xml_history.dart';
-import '../../../Pages/common/widget_loader.dart';
 import '../../../Pages/homescreen/controller/home_screen_controller.dart';
 import '../../../services/xml_importado_service.dart';
 
-import '../view/json_comparison_screen.dart';
+import '../view/version_tables_comparison_screen.dart';
+import '../widgets/enviar_producao_dialog.dart';
 
 class ImportedXmlsController extends GetxController {
   final XmlImportadoService _xmlService = XmlImportadoService();
+
+  /// Evita cliques repetidos em excluir e adia o SQLite após fechar o diálogo.
+  final RxnInt deletingXmlId = RxnInt();
 
   // Listas e estados reativos
   final RxList<XmlImportado> xmlsImportados = <XmlImportado>[].obs;
@@ -187,42 +190,92 @@ class ImportedXmlsController extends GetxController {
     }
   }
 
-  void visualizarJsons(XmlImportado xml) {
-    Get.to(() => JsonComparisonScreen(xmlNumero: xml.numero));
+  void abrirCompararVersoes(XmlImportado xml) {
+    Get.to(() => VersionTablesComparisonScreen(xmlNumero: xml.numero));
+  }
+
+  Future<void> applyProductionSuccess(
+    XmlImportado xml,
+    Outlite outlite,
+    String? jsonCadire2,
+  ) async {
+    if (xml.id == null) return;
+    final jsonOutliteAtualizado = jsonEncode(outlite.toMap());
+    await _xmlService.updateJsons(
+      xml.id!,
+      jsonOutlite: jsonOutliteAtualizado,
+      jsonCadire2: jsonCadire2,
+    );
+    await _xmlService.updateStatus(xml.id!, 'em_producao');
+    final idx = _allXmls.indexWhere((x) => x.id == xml.id);
+    if (idx != -1) {
+      _allXmls[idx] = _allXmls[idx].copyWith(
+        status: 'em_producao',
+        jsonOutlite: jsonOutliteAtualizado,
+        jsonCadire2: jsonCadire2,
+        updatedAt: DateTime.now(),
+      );
+      _updateStatusCount();
+      _recomputeAndResetPagination();
+    }
   }
 
   Future<void> confirmDelete(XmlImportado xml) async {
+    if (xml.id == null) return;
+    if (deletingXmlId.value == xml.id) return;
+
+    final ctx = Get.context;
+    if (ctx == null) return;
+
     final shouldDelete =
-        await Get.dialog<bool>(
-          AlertDialog(
-            title: const Text('Excluir XML'),
-            content: Text(
-              'Deseja excluir a revisão ${xml.revisao} do XML ${xml.numero}?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Get.back(result: false),
-                child: const Text('Cancelar'),
+        await showDialog<bool>(
+          context: ctx,
+          barrierDismissible: true,
+          builder: (dCtx) {
+            final cs = Theme.of(dCtx).colorScheme;
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
               ),
-              ElevatedButton(
-                onPressed: () => Get.back(result: true),
-                child: const Text('Excluir'),
+              title: const Text('Excluir XML'),
+              content: Text(
+                'Deseja excluir todas as revisões do XML ${xml.numero}? '
+                'Esta ação não pode ser desfeita.',
               ),
-            ],
-          ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dCtx, false),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: cs.error,
+                    foregroundColor: cs.onError,
+                  ),
+                  onPressed: () => Navigator.pop(dCtx, true),
+                  child: const Text('Excluir'),
+                ),
+              ],
+            );
+          },
         ) ??
         false;
 
     if (!shouldDelete) return;
 
+    deletingXmlId.value = xml.id;
+    await Future<void>.delayed(Duration.zero);
+
     try {
-      await _xmlService.deleteXmlImportado(xml.id!);
-      _allXmls.removeWhere((x) => x.id == xml.id);
+      await _xmlService.deleteAllRevisionsByNumero(xml.numero);
+      _allXmls.removeWhere((x) => x.numero == xml.numero);
       _updateStatusCount();
       _recomputeAndResetPagination();
-      Get.snackbar('Sucesso', 'XML excluído');
+      Get.snackbar('Sucesso', 'Todas as revisões do XML foram excluídas');
     } catch (e) {
       Get.snackbar('Erro', 'Falha ao excluir XML: $e');
+    } finally {
+      deletingXmlId.value = null;
     }
   }
 
@@ -257,52 +310,14 @@ class ImportedXmlsController extends GetxController {
         return;
       }
 
-      Get.dialog(
-        PopScope(
-          canPop: false,
-          child: Obx(
-            () => LoadingWidget(
-              steps: homeController.saveProgressSteps,
-            ),
-          ),
+      await Get.dialog<void>(
+        EnviarProducaoDialog(
+          outlite: outlite,
+          xml: xml,
+          importedController: this,
         ),
         barrierDismissible: false,
       );
-
-      bool sucesso = false;
-      try {
-        sucesso = await homeController.enviarOutliteParaForWood(outlite);
-      } finally {
-        Get.back();
-      }
-
-      if (!sucesso) {
-        final erros = homeController.saveOKCadireta;
-        Get.snackbar(
-          'Erro',
-          'Falha ao enviar: ${erros.isNotEmpty ? erros.join('; ') : 'verifique os dados'}',
-        );
-        return;
-      }
-
-      await _xmlService.updateStatus(xml.id!, 'em_producao');
-      final idx = _allXmls.indexWhere((x) => x.id == xml.id);
-      if (idx != -1) {
-        final jsonOutliteAtualizado = jsonEncode(outlite.toMap());
-        await _xmlService.updateJsons(
-          xml.id!,
-          jsonOutlite: jsonOutliteAtualizado,
-          jsonCadire2: homeController.lastSavedCadire2Json,
-        );
-        _allXmls[idx] = _allXmls[idx].copyWith(
-          status: 'em_producao',
-          updatedAt: DateTime.now(),
-        );
-        _updateStatusCount();
-        _recomputeAndResetPagination();
-      }
-
-      Get.snackbar('Sucesso', 'XML enviado para produção');
     } catch (e) {
       Get.snackbar('Erro', 'Falha ao enviar para produção: $e');
     }
