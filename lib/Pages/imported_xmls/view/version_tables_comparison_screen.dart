@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import 'package:dartt_integraforwood/Models/xml_history.dart';
-import 'package:dartt_integraforwood/Pages/imported_xmls/helpers/table_compare_utils.dart';
+import 'package:dartt_integraforwood/Pages/imported_xmls/helpers/table_compare_isolate.dart';
 import 'package:dartt_integraforwood/services/xml_importado_service.dart';
 import 'package:flutter/material.dart';
 
@@ -370,38 +370,74 @@ class _ChipLegend extends StatelessWidget {
 }
 
 /// Diff para listas de objetos (cadireta, cadire2).
-class _ListRowsDiff extends StatelessWidget {
+class _ListRowsDiff extends StatefulWidget {
   const _ListRowsDiff(this.rawA, this.rawB);
 
   final String? rawA;
   final String? rawB;
 
   @override
+  State<_ListRowsDiff> createState() => _ListRowsDiffState();
+}
+
+class _ListRowsDiffState extends State<_ListRowsDiff> {
+  Future<ListRowsDiffData>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = computeListRowsDiffAsync(widget.rawA, widget.rawB);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ListRowsDiff oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rawA != widget.rawA || oldWidget.rawB != widget.rawB) {
+      _future = computeListRowsDiffAsync(widget.rawA, widget.rawB);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final rowsA = parseJsonToTableRows(rawA);
-    final rowsB = parseJsonToTableRows(rawB);
-    final cols = orderedColumnKeys(rowsA, rowsB);
-    if (cols.isEmpty) {
-      return Text(
-        'Sem dados nesta revisão.',
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: cs.onSurfaceVariant,
-        ),
-      );
-    }
-    final n = max(rowsA.length, rowsB.length);
-    if (n == 0) {
-      return Text(
-        'Sem linhas para comparar.',
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: cs.onSurfaceVariant,
-        ),
-      );
-    }
+    return FutureBuilder<ListRowsDiffData>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return Center(
+            child: CircularProgressIndicator(color: cs.primary),
+          );
+        }
+        if (snap.hasError) {
+          return Text(
+            'Erro ao processar JSON: ${snap.error}',
+            style: theme.textTheme.bodyMedium?.copyWith(color: cs.error),
+          );
+        }
+        final rowsA = snap.data!.rowsA;
+        final rowsB = snap.data!.rowsB;
+        final cols = snap.data!.cols;
+        if (cols.isEmpty) {
+          return Text(
+            'Sem dados nesta revisão.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          );
+        }
+        final n = max(rowsA.length, rowsB.length);
+        if (n == 0) {
+          return Text(
+            'Sem linhas para comparar.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          );
+        }
 
-    return Card(
+        return RepaintBoundary(
+          child: Card(
       elevation: 0,
       color: cs.surface,
       shape: RoundedRectangleBorder(
@@ -507,34 +543,73 @@ class _ListRowsDiff extends StatelessWidget {
           ),
         ),
       ),
+          ),
+        );
+      },
     );
   }
 }
 
 /// Diff campo a campo (objeto JSON achatado).
-class _FlatFieldDiff extends StatelessWidget {
+class _FlatFieldDiff extends StatefulWidget {
   const _FlatFieldDiff(this.rawA, this.rawB);
 
   final String? rawA;
   final String? rawB;
 
   @override
+  State<_FlatFieldDiff> createState() => _FlatFieldDiffState();
+}
+
+class _FlatFieldDiffState extends State<_FlatFieldDiff> {
+  Future<FlatFieldDiffData>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = computeFlatFieldDiffAsync(widget.rawA, widget.rawB);
+  }
+
+  @override
+  void didUpdateWidget(covariant _FlatFieldDiff oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.rawA != widget.rawA || oldWidget.rawB != widget.rawB) {
+      _future = computeFlatFieldDiffAsync(widget.rawA, widget.rawB);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final mapA = jsonStringToFlatFieldMap(rawA);
-    final mapB = jsonStringToFlatFieldMap(rawB);
-    final keys = {...mapA.keys, ...mapB.keys}.toList()..sort();
-    if (keys.isEmpty) {
-      return Text(
-        'Sem dados para comparar nesta revisão.',
-        style: theme.textTheme.bodyMedium?.copyWith(
-          color: cs.onSurfaceVariant,
-        ),
-      );
-    }
+    return FutureBuilder<FlatFieldDiffData>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return Center(
+            child: CircularProgressIndicator(color: cs.primary),
+          );
+        }
+        if (snap.hasError) {
+          return Text(
+            'Erro ao processar JSON: ${snap.error}',
+            style: theme.textTheme.bodyMedium?.copyWith(color: cs.error),
+          );
+        }
+        final mapA = snap.data!.mapA;
+        final mapB = snap.data!.mapB;
+        final keys = snap.data!.keys;
+        if (keys.isEmpty) {
+          return Text(
+            'Sem dados para comparar nesta revisão.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          );
+        }
 
-    return Card(
+        return RepaintBoundary(
+          child: Card(
       elevation: 0,
       color: cs.surface,
       shape: RoundedRectangleBorder(
@@ -613,6 +688,9 @@ class _FlatFieldDiff extends StatelessWidget {
           ),
         ),
       ),
+          ),
+        );
+      },
     );
   }
 }

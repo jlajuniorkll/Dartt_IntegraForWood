@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 import 'package:dartt_integraforwood/Models/cadire2.dart';
 import 'package:dartt_integraforwood/Models/cadiredi.dart';
 import 'package:dartt_integraforwood/Models/cadireta.dart';
 import 'package:dartt_integraforwood/Models/outlite.dart';
 import 'package:dartt_integraforwood/Models/xml_history.dart';
 import 'package:dartt_integraforwood/Pages/common/progress_step.dart';
+import 'package:dartt_integraforwood/Pages/homescreen/isolate/xml_righe_count.dart';
 import 'package:dartt_integraforwood/Pages/homescreen/repository/home_screen_repository.dart';
 import 'package:dartt_integraforwood/commom/commom_functions.dart';
 import 'package:dartt_integraforwood/commom/pdf_service.dart';
@@ -236,12 +238,21 @@ class HomeScreenController extends GetxController {
       isLoading.value = true;
       statusMessage.value = 'Analisando arquivo XML...';
 
-      // Obter total de itens para progresso
-      final preParsed = XmlDocument.parse(xmlString);
-      final righes = preParsed.findAllElements('RIGHE').toList();
-      final totalItems = righes.isNotEmpty
-          ? righes.first.children.whereType<XmlElement>().length
-          : 0;
+      // Contagem em isolate só em XML grande; caso contrário um único parse.
+      const isolateCountThreshold = 40000;
+      late final XmlDocument preParsed;
+      late final int totalItems;
+      if (xmlString.length >= isolateCountThreshold) {
+        totalItems =
+            await Isolate.run(() => xmlRigheItemCountForProgress(xmlString));
+        preParsed = XmlDocument.parse(xmlString);
+      } else {
+        preParsed = XmlDocument.parse(xmlString);
+        final righes = preParsed.findAllElements('RIGHE').toList();
+        totalItems = righes.isEmpty
+            ? 0
+            : righes.first.children.whereType<XmlElement>().length;
+      }
 
       _initLoadProgressSteps(totalItems: totalItems);
 

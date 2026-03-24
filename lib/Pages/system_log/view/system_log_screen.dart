@@ -129,14 +129,22 @@ class SystemLogScreen extends StatelessWidget {
           const Divider(height: 16),
           Expanded(
             child: Obx(() {
-              final _ = c.logger.logVersion.value;
               final list = c.filtered;
               if (list.isEmpty) {
                 return const Center(child: Text('Nenhum registro'));
               }
               return ListView.builder(
+                key: ValueKey(
+                  (
+                    c.logUiRevision.value,
+                    c.searchText.value,
+                    c.levelFilter.value,
+                  ),
+                ),
                 controller: c.scrollController,
                 padding: const EdgeInsets.only(bottom: 24),
+                cacheExtent: 320,
+                addAutomaticKeepAlives: false,
                 itemCount: list.length,
                 itemBuilder: (ctx, i) {
                   final e = list[i];

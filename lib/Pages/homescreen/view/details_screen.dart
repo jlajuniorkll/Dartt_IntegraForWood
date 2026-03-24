@@ -382,15 +382,14 @@ class DetailsScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Status da conexão SQL Server
-              Obx(
-                () => Material(
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            sliver: SliverToBoxAdapter(
+              child: RepaintBoundary(
+                child: Obx(
+                  () => Material(
                   elevation: 0,
                   color:
                       controller.sqlServerConnected.value
@@ -457,8 +456,15 @@ class DetailsScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Card(
+            ),
+          ),
+        ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: RepaintBoundary(
+                child: Card(
                 elevation: 0,
                 color: cs.surfaceContainerLow,
                 shape: RoundedRectangleBorder(
@@ -609,317 +615,353 @@ class DetailsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-                ),
               ),
-              const SizedBox(height: 16),
-              Obx(() {
+            ),
+          ),
+        ),
+      ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            sliver: Obx(() {
                 final outlite = controller.outliteData.value;
                 if (controller.isLoading.value) {
-                  return Center(
-                    child: LoadingWidget(
-                      steps: controller.loadProgressSteps,
-                      message: controller.loadProgressSteps.isEmpty
-                          ? controller.statusMessage.value
-                          : null,
+                  return SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: LoadingWidget(
+                        steps: controller.loadProgressSteps,
+                        message: controller.loadProgressSteps.isEmpty
+                            ? controller.statusMessage.value
+                            : null,
+                      ),
                     ),
                   );
                 }
                 if (controller.saveCadiretaLoading.value) {
-                  return Center(
-                    child: LoadingWidget(
-                      steps: controller.saveProgressSteps.isNotEmpty
-                          ? controller.saveProgressSteps
-                          : null,
-                      message: controller.saveProgressSteps.isEmpty
-                          ? "Importando dados para o ForWood..."
-                          : null,
+                  return SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: LoadingWidget(
+                        steps: controller.saveProgressSteps.isNotEmpty
+                            ? controller.saveProgressSteps
+                            : null,
+                        message: controller.saveProgressSteps.isEmpty
+                            ? "Importando dados para o ForWood..."
+                            : null,
+                      ),
                     ),
                   );
                 }
                 if (controller.saveOKCadireta.isNotEmpty) {
-                  // return Center(child: CircularProgressIndicator());
                   controller.saveCadiretaLoading.value = false;
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        TextButton.icon(
-                          icon: Icon(Icons.dangerous, color: Colors.red),
-                          label: Text(
-                            "Erro ao importar dados para o ForWood! Clique para retornar!",
+                  return SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          TextButton.icon(
+                            icon: const Icon(Icons.dangerous, color: Colors.red),
+                            label: const Text(
+                              "Erro ao importar dados para o ForWood! Clique para retornar!",
+                            ),
+                            onPressed: () {
+                              controller.saveOKCadireta.clear();
+                            },
                           ),
-                          onPressed: () {
-                            controller.saveOKCadireta.clear();
-                          },
-                        ),
-                        ListView.builder(
-                          shrinkWrap: true,
-                          itemCount: controller.saveOKCadireta.length,
-                          itemBuilder: (_, index) {
-                            return ListTile(
-                              title: Text(controller.saveOKCadireta[index]),
-                            );
-                          },
-                        ),
-                      ],
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: controller.saveOKCadireta.length,
+                            itemBuilder: (_, index) {
+                              return ListTile(
+                                title: Text(controller.saveOKCadireta[index]),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }
                 if (controller.saveOKCadireta.isEmpty &&
                     controller.cadiretaSuccess.value == true) {
                   controller.saveCadiretaLoading.value = false;
-                  return TextButton.icon(
-                    icon: Icon(Icons.check_circle, color: Colors.green),
-                    label: Text(
-                      "Dados importados com sucesso! Importe um novo XML!",
+                  return SliverToBoxAdapter(
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.check_circle, color: Colors.green),
+                      label: const Text(
+                        "Dados importados com sucesso! Importe um novo XML!",
+                      ),
+                      onPressed: () {},
                     ),
-                    onPressed: () {},
                   );
                 }
                 if (outlite != null && controller.saveOKCadireta.isEmpty) {
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Card(
-                        elevation: 0,
-                        color: cs.surfaceContainerLow,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(
-                            color: cs.outlineVariant.withValues(alpha: 0.45),
-                          ),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  final modules = outlite.itembox;
+                  final n = modules?.length ?? 0;
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        if (index == 0) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Text(
-                                'Pedido',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                  color: cs.primary,
+                              Card(
+                                elevation: 0,
+                                color: cs.surfaceContainerLow,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(
+                                    color: cs.outlineVariant
+                                        .withValues(alpha: 0.45),
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              Wrap(
-                                spacing: 20,
-                                runSpacing: 8,
-                                children: [
-                                  _metaChip(
-                                    theme,
-                                    Icons.calendar_today_outlined,
-                                    'Data',
-                                    outlite.data ?? 'N/A',
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    14,
+                                    16,
+                                    14,
                                   ),
-                                  _metaChip(
-                                    theme,
-                                    Icons.tag_outlined,
-                                    'Número',
-                                    outlite.numero ?? 'N/A',
-                                  ),
-                                  _metaChip(
-                                    theme,
-                                    Icons.description_outlined,
-                                    'RIF',
-                                    outlite.rif,
-                                  ),
-                                  _metaChip(
-                                    theme,
-                                    Icons.account_tree_outlined,
-                                    'Pai',
-                                    outlite.codpai,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      if (outlite.itembox != null)
-                        ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: outlite.itembox!.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
-                          itemBuilder: (_, index) {
-                            final qtdfinal = multiplicaQtd(
-                              outlite.itembox![index].qta!,
-                              outlite.itembox![index].pz!,
-                            );
-                            final itemBox = outlite.itembox![index];
-                            final hasErros = itemBox.totalErrosCount > 0;
-                            final hasPend =
-                                itemBox.totalPendentesCadastroCount > 0;
-                            return Material(
-                              elevation: 0,
-                              color: cs.surface,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: BorderSide(
-                                  color: hasErros
-                                      ? cs.error.withValues(alpha: 0.65)
-                                      : cs.outlineVariant.withValues(alpha: 0.55),
-                                  width: hasErros ? 1.5 : 1,
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  14,
-                                  12,
-                                  12,
-                                  12,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                itemBox.des ?? 'Sem descrição',
-                                                style: theme
-                                                    .textTheme
-                                                    .titleSmall
-                                                    ?.copyWith(
-                                                      fontWeight:
-                                                          FontWeight.w600,
-                                                    ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                'Código ${itemBox.codigo ?? ''} · Qtd $qtdfinal · ${itemBox.l ?? '—'}×${itemBox.a ?? '—'}×${itemBox.p ?? '—'} mm',
-                                                style: theme
-                                                    .textTheme
-                                                    .bodySmall
-                                                    ?.copyWith(
-                                                      color:
-                                                          cs.onSurfaceVariant,
-                                                    ),
-                                              ),
-                                            ],
-                                          ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Pedido',
+                                        style: theme.textTheme.titleSmall
+                                            ?.copyWith(
+                                          fontWeight: FontWeight.w700,
+                                          color: cs.primary,
                                         ),
-                                        if (hasErros)
-                                          Padding(
-                                            padding: const EdgeInsets.only(
-                                              left: 8,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 20,
+                                        runSpacing: 8,
+                                        children: [
+                                          _metaChip(
+                                            theme,
+                                            Icons.calendar_today_outlined,
+                                            'Data',
+                                            outlite.data ?? 'N/A',
+                                          ),
+                                          _metaChip(
+                                            theme,
+                                            Icons.tag_outlined,
+                                            'Número',
+                                            outlite.numero ?? 'N/A',
+                                          ),
+                                          _metaChip(
+                                            theme,
+                                            Icons.description_outlined,
+                                            'RIF',
+                                            outlite.rif,
+                                          ),
+                                          _metaChip(
+                                            theme,
+                                            Icons.account_tree_outlined,
+                                            'Pai',
+                                            outlite.codpai,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+                          );
+                        }
+                        final modIndex = index - 1;
+                        final qtdfinal = multiplicaQtd(
+                          modules![modIndex].qta!,
+                          modules[modIndex].pz!,
+                        );
+                        final itemBox = modules[modIndex];
+                        final hasErros = itemBox.totalErrosCount > 0;
+                        final hasPend =
+                            itemBox.totalPendentesCadastroCount > 0;
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (index > 1) const SizedBox(height: 10),
+                            RepaintBoundary(
+                              child: Material(
+                                elevation: 0,
+                                color: cs.surface,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(
+                                    color: hasErros
+                                        ? cs.error.withValues(alpha: 0.65)
+                                        : cs.outlineVariant
+                                            .withValues(alpha: 0.55),
+                                    width: hasErros ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    14,
+                                    12,
+                                    12,
+                                    12,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  itemBox.des ??
+                                                      'Sem descrição',
+                                                  style: theme
+                                                      .textTheme.titleSmall
+                                                      ?.copyWith(
+                                                    fontWeight:
+                                                        FontWeight.w600,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Código ${itemBox.codigo ?? ''} · Qtd $qtdfinal · ${itemBox.l ?? '—'}×${itemBox.a ?? '—'}×${itemBox.p ?? '—'} mm',
+                                                  style: theme
+                                                      .textTheme.bodySmall
+                                                      ?.copyWith(
+                                                    color:
+                                                        cs.onSurfaceVariant,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
-                                            child: Tooltip(
+                                          ),
+                                          if (hasErros)
+                                            Padding(
+                                              padding: const EdgeInsets.only(
+                                                left: 8,
+                                              ),
+                                              child: Tooltip(
+                                                message:
+                                                    '${itemBox.errosProducaoCount} erro(s) produção, ${itemBox.errosCompraCount} erro(s) compra',
+                                                child: Chip(
+                                                  avatar: Icon(
+                                                    Icons
+                                                        .warning_amber_rounded,
+                                                    color: cs.error,
+                                                    size: 18,
+                                                  ),
+                                                  label: Text(
+                                                    '${itemBox.totalErrosCount} erro(s)',
+                                                    style: theme
+                                                        .textTheme.labelMedium
+                                                        ?.copyWith(
+                                                      color: cs.error,
+                                                    ),
+                                                  ),
+                                                  backgroundColor: cs
+                                                      .errorContainer
+                                                      .withValues(alpha: 0.5),
+                                                  side: BorderSide.none,
+                                                  visualDensity:
+                                                      VisualDensity.compact,
+                                                ),
+                                              ),
+                                            ),
+                                          if (hasPend) ...[
+                                            if (hasErros)
+                                              const SizedBox(width: 6),
+                                            Tooltip(
                                               message:
-                                                  '${itemBox.errosProducaoCount} erro(s) produção, ${itemBox.errosCompraCount} erro(s) compra',
+                                                  'Cadastrar no PostgreSQL/ForWood',
                                               child: Chip(
                                                 avatar: Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  color: cs.error,
+                                                  Icons.edit_note_rounded,
+                                                  color: cs.primary,
                                                   size: 18,
                                                 ),
                                                 label: Text(
-                                                  '${itemBox.totalErrosCount} erro(s)',
+                                                  '${itemBox.totalPendentesCadastroCount} atualizar',
                                                   style: theme
-                                                      .textTheme
-                                                      .labelMedium
+                                                      .textTheme.labelMedium
                                                       ?.copyWith(
-                                                        color: cs.error,
-                                                      ),
+                                                    color: cs.primary,
+                                                  ),
                                                 ),
-                                                backgroundColor: cs.errorContainer
-                                                    .withValues(alpha: 0.5),
+                                                backgroundColor: cs
+                                                    .primaryContainer
+                                                    .withValues(alpha: 0.45),
                                                 side: BorderSide.none,
                                                 visualDensity:
                                                     VisualDensity.compact,
                                               ),
                                             ),
-                                          ),
-                                        if (hasPend) ...[
-                                          if (hasErros)
-                                            const SizedBox(width: 6),
-                                          Tooltip(
-                                            message:
-                                                'Cadastrar no PostgreSQL/ForWood',
-                                            child: Chip(
-                                              avatar: Icon(
-                                                Icons.edit_note_rounded,
-                                                color: cs.primary,
-                                                size: 18,
-                                              ),
-                                              label: Text(
-                                                '${itemBox.totalPendentesCadastroCount} atualizar',
-                                                style: theme
-                                                    .textTheme
-                                                    .labelMedium
-                                                    ?.copyWith(
-                                                      color: cs.primary,
-                                                    ),
-                                              ),
-                                              backgroundColor: cs
-                                                  .primaryContainer
-                                                  .withValues(alpha: 0.45),
-                                              side: BorderSide.none,
-                                              visualDensity:
-                                                  VisualDensity.compact,
+                                          ],
+                                        ],
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        children: [
+                                          FilledButton.tonalIcon(
+                                            onPressed: () {
+                                              widgetproduzidos(
+                                                context,
+                                                outlite,
+                                                modIndex,
+                                              );
+                                            },
+                                            icon: const Icon(
+                                              Icons.precision_manufacturing,
+                                              size: 20,
                                             ),
+                                            label: const Text('Fabricados'),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          OutlinedButton.icon(
+                                            onPressed: () {
+                                              widgetcomprados(
+                                                context,
+                                                outlite,
+                                                modIndex,
+                                              );
+                                            },
+                                            icon: const Icon(
+                                              Icons.shopping_cart_outlined,
+                                              size: 20,
+                                            ),
+                                            label: const Text('Comprados'),
                                           ),
                                         ],
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    Row(
-                                      children: [
-                                        FilledButton.tonalIcon(
-                                          onPressed: () {
-                                            widgetproduzidos(
-                                              context,
-                                              outlite,
-                                              index,
-                                            );
-                                          },
-                                          icon: const Icon(
-                                            Icons.precision_manufacturing,
-                                            size: 20,
-                                          ),
-                                          label: const Text('Fabricados'),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        OutlinedButton.icon(
-                                          onPressed: () {
-                                            widgetcomprados(
-                                              context,
-                                              outlite,
-                                              index,
-                                            );
-                                          },
-                                          icon: const Icon(
-                                            Icons.shopping_cart_outlined,
-                                            size: 20,
-                                          ),
-                                          label: const Text('Comprados'),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                    ],
+                            ),
+                          ],
+                        );
+                      },
+                      childCount: 1 + n,
+                    ),
                   );
-                } else {
-                  return Text('Nenhum dado XML carregado.');
                 }
+                return const SliverToBoxAdapter(
+                  child: Text('Nenhum dado XML carregado.'),
+                );
               }),
-            ],
           ),
-        ),
+        ],
       ),
     );
   }

@@ -50,6 +50,7 @@ class MyApp extends StatelessWidget {
     return GetMaterialApp(
       title: 'Integra3CadForWood',
       theme: ThemeData(
+        useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
       ),
       debugShowCheckedModeBanner: false,

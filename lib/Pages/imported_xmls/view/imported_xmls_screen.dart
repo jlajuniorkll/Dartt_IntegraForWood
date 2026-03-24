@@ -188,6 +188,7 @@ class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
               return ListView.separated(
                 controller: _scrollController,
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                cacheExtent: 380,
                 itemCount:
                     controller.xmlsImportados.length +
                     (controller.hasMoreItems.value ? 1 : 0),
@@ -208,10 +209,12 @@ class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
                   }
 
                   final xml = controller.xmlsImportados[index];
-                  return _ImportedXmlCard(
-                    key: ValueKey('xml_${xml.id}_${xml.revisao}'),
-                    xml: xml,
-                    controller: controller,
+                  return RepaintBoundary(
+                    child: _ImportedXmlCard(
+                      key: ValueKey('xml_${xml.id}_${xml.revisao}'),
+                      xml: xml,
+                      controller: controller,
+                    ),
                   );
                 },
               );

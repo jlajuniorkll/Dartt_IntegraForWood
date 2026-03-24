@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:get/get.dart';
@@ -49,7 +50,36 @@ class AppLogger extends GetxService {
   File? _file;
   String? _filePath;
 
+  final List<String> _fileWriteBuffer = [];
+  Timer? _fileFlushTimer;
+  static const _fileFlushInterval = Duration(milliseconds: 280);
+
   String? get logFilePath => _filePath;
+
+  void _scheduleFileFlush() {
+    _fileFlushTimer ??= Timer(_fileFlushInterval, _flushFileBuffer);
+  }
+
+  void _flushFileBuffer() {
+    _fileFlushTimer?.cancel();
+    _fileFlushTimer = null;
+    if (_file == null || _fileWriteBuffer.isEmpty) return;
+    try {
+      final chunk = _fileWriteBuffer.join();
+      _fileWriteBuffer.clear();
+      _file!.writeAsStringSync(
+        chunk,
+        mode: FileMode.append,
+        flush: true,
+      );
+    } catch (_) {}
+  }
+
+  @override
+  void onClose() {
+    _flushFileBuffer();
+    super.onClose();
+  }
 
   Future<void> prepare() async {
     try {
@@ -124,11 +154,10 @@ class AppLogger extends GetxService {
       entries.removeAt(0);
     }
     try {
-      _file?.writeAsStringSync(
-        '${e.line}\n',
-        mode: FileMode.append,
-        flush: true,
-      );
+      if (_file != null) {
+        _fileWriteBuffer.add('${e.line}\n');
+        _scheduleFileFlush();
+      }
     } catch (_) {}
   }
 
@@ -138,6 +167,7 @@ class AppLogger extends GetxService {
 
   Future<void> clearTodaysFile() async {
     try {
+      _flushFileBuffer();
       if (_file != null && await _file!.exists()) {
         await _file!.writeAsString('');
       }

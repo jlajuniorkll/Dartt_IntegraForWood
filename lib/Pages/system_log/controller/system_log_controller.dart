@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dartt_integraforwood/services/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,6 +14,10 @@ class SystemLogController extends GetxController {
   final ScrollController scrollController = ScrollController();
   final RxBool followTail = true.obs;
 
+  /// Incremento com debounce para a lista não reconstruir a cada linha de log.
+  final RxInt logUiRevision = 0.obs;
+  Timer? _logUiDebounce;
+
   @override
   void onInit() {
     super.onInit();
@@ -19,6 +25,10 @@ class SystemLogController extends GetxController {
       searchText.value = searchController.text;
     });
     ever(logger.logVersion, (_) {
+      _logUiDebounce?.cancel();
+      _logUiDebounce = Timer(const Duration(milliseconds: 120), () {
+        logUiRevision.value++;
+      });
       if (!followTail.value) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (scrollController.hasClients) {
@@ -30,6 +40,7 @@ class SystemLogController extends GetxController {
 
   @override
   void onClose() {
+    _logUiDebounce?.cancel();
     searchController.dispose();
     scrollController.dispose();
     super.onClose();
