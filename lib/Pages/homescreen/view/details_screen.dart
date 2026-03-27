@@ -11,12 +11,7 @@ import 'package:get/get.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-Widget _metaChip(
-  ThemeData theme,
-  IconData icon,
-  String label,
-  String value,
-) {
+Widget _metaChip(ThemeData theme, IconData icon, String label, String value) {
   final cs = theme.colorScheme;
   return Row(
     mainAxisSize: MainAxisSize.min,
@@ -84,6 +79,32 @@ Widget _detailTableDataCell(Widget child, ThemeData theme) {
   );
 }
 
+Widget _fabricadosCodigoCell(ItemPecas p, ThemeData theme) {
+  final cs = theme.colorScheme;
+  final fw = (p.codpeca ?? '').trim();
+  final ecad = (p.codpecaArticoli ?? '').trim();
+  final showEcad = fw.isNotEmpty && ecad.isNotEmpty && ecad != fw;
+  final primary = fw.isNotEmpty ? fw : ecad;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(primary, style: theme.textTheme.bodyMedium),
+      if (showEcad)
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            'eCad: $ecad',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+    ],
+  );
+}
+
 TableBorder _detailTableBorder(ColorScheme cs) {
   final b = BorderSide(color: cs.outlineVariant.withValues(alpha: 0.55));
   return TableBorder(
@@ -105,60 +126,40 @@ Widget _buildCompradosTable(List<ItemPrice> prices, ThemeData theme) {
   return SizedBox(
     width: _kCompradosTableWidth,
     child: Table(
-    columnWidths: const {
-      0: FixedColumnWidth(118),
-      1: FixedColumnWidth(320),
-      2: FixedColumnWidth(72),
-    },
-    border: _detailTableBorder(cs),
-    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-    children: [
-      TableRow(
-        decoration: BoxDecoration(color: cs.surfaceContainerHigh),
-        children: [
-          _detailTableHeaderCell('Código', theme),
-          _detailTableHeaderCell('Descrição', theme),
-          _detailTableHeaderCell('Qtd', theme),
-        ],
-      ),
-      for (final itemPrice in prices)
+      columnWidths: const {
+        0: FixedColumnWidth(118),
+        1: FixedColumnWidth(320),
+        2: FixedColumnWidth(72),
+      },
+      border: _detailTableBorder(cs),
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
         TableRow(
-          decoration: BoxDecoration(
-            color: itemPrice.hasErroDescricao
-                ? cs.errorContainer.withValues(alpha: 0.32)
-                : itemPrice.precisaCadastroForWoodUi
-                    ? cs.primaryContainer.withValues(alpha: 0.25)
-                    : null,
-          ),
+          decoration: BoxDecoration(color: cs.surfaceContainerHigh),
           children: [
-            _detailTableDataCell(Text(itemPrice.codigo ?? ''), theme),
-            _detailTableDataCell(
-              itemPrice.precisaCadastroForWoodUi
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${itemPrice.codigo ?? ''} — ${itemPrice.descricaoSqlServer ?? itemPrice.des ?? ''}',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          'Atualizar',
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Text(itemPrice.des ?? ''),
-              theme,
-            ),
-            _detailTableDataCell(Text(itemPrice.qtd ?? ''), theme),
+            _detailTableHeaderCell('Código', theme),
+            _detailTableHeaderCell('Descrição', theme),
+            _detailTableHeaderCell('Qtd', theme),
           ],
         ),
-    ],
+        for (final itemPrice in prices)
+          TableRow(
+            decoration: BoxDecoration(
+              color:
+                  itemPrice.hasErroDescricao
+                      ? cs.errorContainer.withValues(alpha: 0.32)
+                      : null,
+            ),
+            children: [
+              _detailTableDataCell(Text(itemPrice.codigo ?? ''), theme),
+              _detailTableDataCell(
+                Text(itemPrice.descricaoSqlServer ?? itemPrice.des ?? ''),
+                theme,
+              ),
+              _detailTableDataCell(Text(itemPrice.qtd ?? ''), theme),
+            ],
+          ),
+      ],
     ),
   );
 }
@@ -170,151 +171,134 @@ Widget _buildFabricadosTable({
 }) {
   final theme = Theme.of(dialogContext);
   final cs = theme.colorScheme;
-  const fabricadosW =
-      112 +
-      300 +
-      56 +
-      76 +
-      76 +
-      76 +
-      116 +
-      64 +
-      48;
+  const fabricadosW = 112 + 300 + 56 + 76 + 76 + 76 + 116 + 64 + 48;
   return SizedBox(
     width: fabricadosW.toDouble(),
     child: Table(
-    columnWidths: const {
-      0: FixedColumnWidth(112),
-      1: FixedColumnWidth(300),
-      2: FixedColumnWidth(56),
-      3: FixedColumnWidth(76),
-      4: FixedColumnWidth(76),
-      5: FixedColumnWidth(76),
-      6: FixedColumnWidth(116),
-      7: FixedColumnWidth(64),
-      8: FixedColumnWidth(48),
-    },
-    border: _detailTableBorder(cs),
-    defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-    children: [
-      TableRow(
-        decoration: BoxDecoration(color: cs.surfaceContainerHigh),
-        children: [
-          _detailTableHeaderCell('Código', theme),
-          _detailTableHeaderCell('Descrição', theme),
-          _detailTableHeaderCell('Qtd', theme),
-          _detailTableHeaderCell('Comp.', theme),
-          _detailTableHeaderCell('Larg.', theme),
-          _detailTableHeaderCell('Esp.', theme),
-          _detailTableHeaderCell('Matrícula', theme),
-          _detailTableHeaderCell('Fita', theme),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Icon(
-                Icons.account_tree_outlined,
-                size: 18,
-                color: cs.onSurfaceVariant,
-              ),
-            ),
-          ),
-        ],
-      ),
-      for (final itemPecas in pecas)
+      columnWidths: const {
+        0: FixedColumnWidth(112),
+        1: FixedColumnWidth(300),
+        2: FixedColumnWidth(56),
+        3: FixedColumnWidth(76),
+        4: FixedColumnWidth(76),
+        5: FixedColumnWidth(76),
+        6: FixedColumnWidth(116),
+        7: FixedColumnWidth(64),
+        8: FixedColumnWidth(48),
+      },
+      border: _detailTableBorder(cs),
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
         TableRow(
-          decoration: BoxDecoration(
-            color: itemPecas.hasErroDescricao
-                ? cs.errorContainer.withValues(alpha: 0.32)
-                : itemPecas.precisaCadastroForWoodUi
-                    ? cs.primaryContainer.withValues(alpha: 0.22)
-                    : null,
-          ),
+          decoration: BoxDecoration(color: cs.surfaceContainerHigh),
           children: [
-            _detailTableDataCell(Text(itemPecas.codpeca ?? ''), theme),
-            _detailTableDataCell(
-              itemPecas.precisaCadastroForWoodUi
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${itemPecas.codpeca ?? ''} — ${itemPecas.descricaoSqlServer ?? itemPecas.idpeca ?? ''}',
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          'Atualizar',
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Text(itemPecas.idpeca ?? ''),
-              theme,
-            ),
-            _detailTableDataCell(Text(itemPecas.qta ?? ''), theme),
-            _detailTableDataCell(Text(itemPecas.comprimento ?? ''), theme),
-            _detailTableDataCell(Text(itemPecas.largura ?? ''), theme),
-            _detailTableDataCell(Text(itemPecas.espessura ?? ''), theme),
-            _detailTableDataCell(Text(itemPecas.matricula ?? ''), theme),
-            _detailTableDataCell(
-              SizedBox(
-                width: 52,
-                height: 52,
-                child: Center(
-                  child: CustomPaint(
-                    size: _bordaPreviewSize(
-                      itemPecas.comprimento,
-                      itemPecas.largura,
-                    ),
-                    painter: BordaColoridaPainter(
-                      bordaesq: itemPecas.fitaesq ?? 'N',
-                      bordadir: itemPecas.fitadir ?? 'N',
-                      bordafre: itemPecas.fitafre ?? 'N',
-                      bordatra: itemPecas.fitatra ?? 'N',
-                    ),
-                  ),
+            _detailTableHeaderCell('Código', theme),
+            _detailTableHeaderCell('Descrição', theme),
+            _detailTableHeaderCell('Qtd', theme),
+            _detailTableHeaderCell('Comp.', theme),
+            _detailTableHeaderCell('Larg.', theme),
+            _detailTableHeaderCell('Esp.', theme),
+            _detailTableHeaderCell('Matrícula', theme),
+            _detailTableHeaderCell('Fita', theme),
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Icon(
+                  Icons.account_tree_outlined,
+                  size: 18,
+                  color: cs.onSurfaceVariant,
                 ),
               ),
-              theme,
-            ),
-            _detailTableDataCell(
-              IconButton(
-                tooltip: 'Estrutura expandida',
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(
-                  minWidth: 40,
-                  minHeight: 40,
-                ),
-                onPressed: () async {
-                  final result = await controller.getEstruturaExpandida(
-                    itemPecas.codpeca!,
-                    itemPecas.variaveis!,
-                    itemPecas.comprimento!,
-                    itemPecas.largura!,
-                    itemPecas.espessura!,
-                  );
-                  if (result.isEmpty || result == 'Erro') {
-                    // ignore: use_build_context_synchronously
-                    _mostrarDialogComResultados(dialogContext, []);
-                  } else {
-                    final resultados = List<Map<String, dynamic>>.from(
-                      json.decode(result),
-                    );
-                    // ignore: use_build_context_synchronously
-                    _mostrarDialogComResultados(dialogContext, resultados);
-                  }
-                },
-                icon: const Icon(Icons.add_box_outlined),
-              ),
-              theme,
             ),
           ],
         ),
-    ],
+        for (final itemPecas in pecas)
+          TableRow(
+            decoration: BoxDecoration(
+              color:
+                  itemPecas.hasErroDescricao
+                      ? cs.errorContainer.withValues(alpha: 0.32)
+                      : null,
+            ),
+            children: [
+              _detailTableDataCell(
+                _fabricadosCodigoCell(itemPecas, theme),
+                theme,
+              ),
+              _detailTableDataCell(
+                Text(itemPecas.descricaoSqlServer ?? itemPecas.idpeca ?? ''),
+                theme,
+              ),
+              _detailTableDataCell(Text(itemPecas.qta ?? ''), theme),
+              _detailTableDataCell(Text(itemPecas.comprimento ?? ''), theme),
+              _detailTableDataCell(Text(itemPecas.largura ?? ''), theme),
+              _detailTableDataCell(Text(itemPecas.espessura ?? ''), theme),
+              _detailTableDataCell(Text(itemPecas.matricula ?? ''), theme),
+              _detailTableDataCell(
+                SizedBox(
+                  width: 52,
+                  height: 52,
+                  child: Center(
+                    child: CustomPaint(
+                      size: _bordaPreviewSize(
+                        itemPecas.comprimento,
+                        itemPecas.largura,
+                      ),
+                      painter: BordaColoridaPainter(
+                        bordaesq: itemPecas.fitaesq ?? 'N',
+                        bordadir: itemPecas.fitadir ?? 'N',
+                        bordafre: itemPecas.fitafre ?? 'N',
+                        bordatra: itemPecas.fitatra ?? 'N',
+                      ),
+                    ),
+                  ),
+                ),
+                theme,
+              ),
+              _detailTableDataCell(
+                IconButton(
+                  tooltip: 'Estrutura expandida',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 40,
+                    minHeight: 40,
+                  ),
+                  onPressed:
+                      (itemPecas.codigoParaArticoli == null ||
+                              itemPecas.codigoParaArticoli!.isEmpty)
+                          ? null
+                          : () async {
+                            final result = await controller
+                                .getEstruturaExpandida(
+                                  itemPecas.codigoParaArticoli!,
+                                  itemPecas.variaveis ?? '',
+                                  itemPecas.comprimento!,
+                                  itemPecas.largura!,
+                                  itemPecas.espessura!,
+                                );
+                            if (result.isEmpty || result == 'Erro') {
+                              // ignore: use_build_context_synchronously
+                              _mostrarDialogComResultados(dialogContext, []);
+                            } else {
+                              final resultados =
+                                  List<Map<String, dynamic>>.from(
+                                    json.decode(result),
+                                  );
+                              // ignore: use_build_context_synchronously
+                              _mostrarDialogComResultados(
+                                dialogContext,
+                                resultados,
+                              );
+                            }
+                          },
+                  icon: const Icon(Icons.add_box_outlined),
+                ),
+                theme,
+              ),
+            ],
+          ),
+      ],
     ),
   );
 }
@@ -390,67 +374,246 @@ class DetailsScreen extends StatelessWidget {
               child: RepaintBoundary(
                 child: Obx(
                   () => Material(
-                  elevation: 0,
-                  color:
-                      controller.sqlServerConnected.value
-                          ? cs.primaryContainer.withValues(alpha: 0.55)
-                          : cs.errorContainer.withValues(alpha: 0.45),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(
-                      color:
-                          controller.sqlServerConnected.value
-                              ? cs.primary.withValues(alpha: 0.35)
-                              : cs.error.withValues(alpha: 0.4),
+                    elevation: 0,
+                    color:
+                        controller.sqlServerConnected.value
+                            ? cs.primaryContainer.withValues(alpha: 0.55)
+                            : cs.errorContainer.withValues(alpha: 0.45),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color:
+                            controller.sqlServerConnected.value
+                                ? cs.primary.withValues(alpha: 0.35)
+                                : cs.error.withValues(alpha: 0.4),
+                      ),
                     ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              controller.sqlServerConnected.value
-                                  ? Icons.check_circle_rounded
-                                  : Icons.error_outline_rounded,
-                              color:
-                                  controller.sqlServerConnected.value
-                                      ? cs.primary
-                                      : cs.error,
-                              size: 22,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                controller.sqlServerConnected.value
+                                    ? Icons.check_circle_rounded
+                                    : Icons.error_outline_rounded,
+                                color:
+                                    controller.sqlServerConnected.value
+                                        ? cs.primary
+                                        : cs.error,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'SQL Server: ${controller.sqlServerStatus.value}',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w600,
+                                    color:
+                                        controller.sqlServerConnected.value
+                                            ? cs.onPrimaryContainer
+                                            : cs.onErrorContainer,
+                                  ),
+                                ),
+                              ),
+                              if (!controller.sqlServerConnected.value)
+                                FilledButton.tonal(
+                                  onPressed:
+                                      () => controller.connectSqlServer(),
+                                  child: const Text('Tentar'),
+                                ),
+                            ],
+                          ),
+                          if (controller.sqlServerError.value.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 10),
                               child: Text(
-                                'SQL Server: ${controller.sqlServerStatus.value}',
-                                style: theme.textTheme.titleSmall?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                  color:
-                                      controller.sqlServerConnected.value
-                                          ? cs.onPrimaryContainer
-                                          : cs.onErrorContainer,
+                                controller.sqlServerError.value,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.error,
                                 ),
                               ),
                             ),
-                            if (!controller.sqlServerConnected.value)
-                              FilledButton.tonal(
-                                onPressed: () => controller.connectSqlServer(),
-                                child: const Text('Tentar'),
-                              ),
-                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 16)),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: SliverToBoxAdapter(
+              child: RepaintBoundary(
+                child: Card(
+                  elevation: 0,
+                  color: cs.surfaceContainerLow,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: cs.outlineVariant.withValues(alpha: 0.5),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 14,
+                    ),
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 10,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      alignment: WrapAlignment.start,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: () async {
+                            controller.cadiretaSuccess.value = false;
+                            controller.saveOKCadireta.clear();
+                            controller.outliteData.value = null;
+                            final prefs = await SharedPreferences.getInstance();
+                            final diretorio =
+                                prefs.getString('diretorioXML') ?? 'T:\\xml';
+                            final XFile? file = await openFile(
+                              initialDirectory: diretorio,
+                              acceptedTypeGroups: [
+                                XTypeGroup(extensions: ['xml']),
+                              ],
+                            ); // Use openFile do file_selector
+
+                            if (file != null) {
+                              final bytes = await file.readAsBytes();
+                              xmlString = utf8.decode(bytes);
+                              controller.loadXML(xmlString!, file.name);
+                            }
+                          },
+                          icon: const Icon(Icons.file_open_outlined),
+                          label: const Text('Abrir XML'),
                         ),
-                        if (controller.sqlServerError.value.isNotEmpty)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 10),
-                            child: Text(
-                              controller.sqlServerError.value,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: cs.error,
-                              ),
-                            ),
+                        FilledButton.tonalIcon(
+                          onPressed: () {
+                            Get.toNamed(PageRoutes.importedXmls);
+                          },
+                          icon: const Icon(Icons.history),
+                          label: const Text('XMLs importados'),
+                        ),
+                        Obx(
+                          () => FilledButton.icon(
+                            onPressed:
+                                controller.outliteData.value == null
+                                    ? null
+                                    : () async {
+                                      final o = controller.outliteData.value!;
+                                      final ok = await controller
+                                          .confirmarEnvioParaForWoodSeNecessario(
+                                            o,
+                                          );
+                                      if (!ok) return;
+                                      controller.saveDataBase(
+                                        outlite: o,
+                                        xmlString: xmlString,
+                                      );
+                                    },
+                            icon: const Icon(Icons.send_rounded),
+                            label: const Text('Enviar ForWood'),
                           ),
+                        ),
+                        Obx(
+                          () => FilledButton.tonalIcon(
+                            onPressed:
+                                controller.outliteData.value == null
+                                    ? null
+                                    : () {
+                                      showDialog(
+                                        context: context,
+                                        builder:
+                                            (context) => AlertDialog(
+                                              title: Text(
+                                                'Selecione o tipo de impressão',
+                                              ),
+                                              content: Column(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  ListTile(
+                                                    leading: Icon(
+                                                      Icons.shopping_cart,
+                                                    ),
+                                                    title: Text(
+                                                      'Itens Comprados',
+                                                    ),
+                                                    onTap: () {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop();
+                                                      controller
+                                                          .generateCompradosReport();
+                                                    },
+                                                  ),
+                                                  ListTile(
+                                                    leading: Icon(Icons.build),
+                                                    title: Text(
+                                                      'Itens Fabricados',
+                                                    ),
+                                                    onTap: () {
+                                                      Navigator.of(
+                                                        context,
+                                                      ).pop();
+                                                      controller
+                                                          .generateFabricadosReport();
+                                                    },
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                      );
+                                    },
+                            icon: const Icon(Icons.print_outlined),
+                            label: const Text('Imprimir'),
+                          ),
+                        ),
+                        GetBuilder<HomeScreenController>(
+                          builder: (ctl) {
+                            return Chip(
+                              avatar: Icon(
+                                Icons.storage_outlined,
+                                size: 18,
+                                color: ctl.databaseOn ? cs.primary : cs.error,
+                              ),
+                              label: Text(
+                                ctl.databaseOn ? 'ForWood OK' : 'ForWood off',
+                                style: theme.textTheme.labelMedium,
+                              ),
+                              backgroundColor: cs.surfaceContainerHighest,
+                              side: BorderSide.none,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                            );
+                          },
+                        ),
+                        GetBuilder<HomeScreenController>(
+                          builder: (ctl) {
+                            return Chip(
+                              avatar: Icon(
+                                Icons.dns_outlined,
+                                size: 18,
+                                color: ctl.databasePro ? cs.primary : cs.error,
+                              ),
+                              label: Text(
+                                ctl.databasePro ? '3CAD OK' : '3CAD off',
+                                style: theme.textTheme.labelMedium,
+                              ),
+                              backgroundColor: cs.surfaceContainerHighest,
+                              side: BorderSide.none,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -458,508 +621,323 @@ class DetailsScreen extends StatelessWidget {
               ),
             ),
           ),
-        ),
-          const SliverToBoxAdapter(child: SizedBox(height: 16)),
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverToBoxAdapter(
-              child: RepaintBoundary(
-                child: Card(
-                elevation: 0,
-                color: cs.surfaceContainerLow,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 10,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    alignment: WrapAlignment.start,
-                    children: [
-                    FilledButton.icon(
-                      onPressed: () async {
-                        controller.cadiretaSuccess.value = false;
-                        controller.saveOKCadireta.clear();
-                        controller.outliteData.value = null;
-                        final prefs = await SharedPreferences.getInstance();
-                        final diretorio =
-                            prefs.getString('diretorioXML') ?? 'T:\\xml';
-                        final XFile? file = await openFile(
-                          initialDirectory: diretorio,
-                          acceptedTypeGroups: [
-                            XTypeGroup(extensions: ['xml']),
-                          ],
-                        ); // Use openFile do file_selector
-
-                        if (file != null) {
-                          final bytes = await file.readAsBytes();
-                          xmlString = utf8.decode(bytes);
-                          controller.loadXML(xmlString!, file.name);
-                        }
-                      },
-                      icon: const Icon(Icons.file_open_outlined),
-                      label: const Text('Abrir XML'),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: () {
-                        Get.toNamed(PageRoutes.importedXmls);
-                      },
-                      icon: const Icon(Icons.history),
-                      label: const Text('XMLs importados'),
-                    ),
-                    Obx(
-                      () => FilledButton.icon(
-                        onPressed:
-                            controller.outliteData.value == null
-                                ? null
-                                : () async {
-                                  final o = controller.outliteData.value!;
-                                  final ok =
-                                      await controller
-                                          .confirmarEnvioParaForWoodSeNecessario(
-                                            o,
-                                          );
-                                  if (!ok) return;
-                                  controller.saveDataBase(
-                                    outlite: o,
-                                    xmlString: xmlString,
-                                  );
-                                },
-                        icon: const Icon(Icons.send_rounded),
-                        label: const Text('Enviar ForWood'),
-                      ),
-                    ),
-                    Obx(
-                      () => FilledButton.tonalIcon(
-                        onPressed:
-                            controller.outliteData.value == null
-                                ? null
-                                : () {
-                                  showDialog(
-                                    context: context,
-                                    builder:
-                                        (context) => AlertDialog(
-                                          title: Text(
-                                            'Selecione o tipo de impressão',
-                                          ),
-                                          content: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              ListTile(
-                                                leading: Icon(
-                                                  Icons.shopping_cart,
-                                                ),
-                                                title: Text('Itens Comprados'),
-                                                onTap: () {
-                                                  Navigator.of(context).pop();
-                                                  controller
-                                                      .generateCompradosReport();
-                                                },
-                                              ),
-                                              ListTile(
-                                                leading: Icon(Icons.build),
-                                                title: Text('Itens Fabricados'),
-                                                onTap: () {
-                                                  Navigator.of(context).pop();
-                                                  controller
-                                                      .generateFabricadosReport();
-                                                },
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                  );
-                                },
-                        icon: const Icon(Icons.print_outlined),
-                        label: const Text('Imprimir'),
-                      ),
-                    ),
-                    GetBuilder<HomeScreenController>(
-                      builder: (ctl) {
-                        return Chip(
-                          avatar: Icon(
-                            Icons.storage_outlined,
-                            size: 18,
-                            color: ctl.databaseOn ? cs.primary : cs.error,
-                          ),
-                          label: Text(
-                            ctl.databaseOn ? 'ForWood OK' : 'ForWood off',
-                            style: theme.textTheme.labelMedium,
-                          ),
-                          backgroundColor: cs.surfaceContainerHighest,
-                          side: BorderSide.none,
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                        );
-                      },
-                    ),
-                    GetBuilder<HomeScreenController>(
-                      builder: (ctl) {
-                        return Chip(
-                          avatar: Icon(
-                            Icons.dns_outlined,
-                            size: 18,
-                            color: ctl.databasePro ? cs.primary : cs.error,
-                          ),
-                          label: Text(
-                            ctl.databasePro ? '3CAD OK' : '3CAD off',
-                            style: theme.textTheme.labelMedium,
-                          ),
-                          backgroundColor: cs.surfaceContainerHighest,
-                          side: BorderSide.none,
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
           const SliverToBoxAdapter(child: SizedBox(height: 16)),
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
             sliver: Obx(() {
-                final outlite = controller.outliteData.value;
-                if (controller.isLoading.value) {
-                  return SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: LoadingWidget(
-                        steps: controller.loadProgressSteps,
-                        message: controller.loadProgressSteps.isEmpty
-                            ? controller.statusMessage.value
-                            : null,
-                      ),
+              final outlite = controller.outliteData.value;
+              if (controller.isLoading.value) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: LoadingWidget(
+                      steps: controller.loadProgressSteps,
+                      message:
+                          controller.loadProgressSteps.isEmpty
+                              ? controller.statusMessage.value
+                              : null,
                     ),
-                  );
-                }
-                if (controller.saveCadiretaLoading.value) {
-                  return SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: LoadingWidget(
-                        steps: controller.saveProgressSteps.isNotEmpty
-                            ? controller.saveProgressSteps
-                            : null,
-                        message: controller.saveProgressSteps.isEmpty
-                            ? "Importando dados para o ForWood..."
-                            : null,
-                      ),
+                  ),
+                );
+              }
+              if (controller.saveCadiretaLoading.value) {
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: LoadingWidget(
+                      steps:
+                          controller.saveProgressSteps.isNotEmpty
+                              ? controller.saveProgressSteps
+                              : null,
+                      message:
+                          controller.saveProgressSteps.isEmpty
+                              ? "Importando dados para o ForWood..."
+                              : null,
                     ),
-                  );
-                }
-                if (controller.saveOKCadireta.isNotEmpty) {
-                  controller.saveCadiretaLoading.value = false;
-                  return SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.center,
+                  ),
+                );
+              }
+              if (controller.saveOKCadireta.isNotEmpty) {
+                controller.saveCadiretaLoading.value = false;
+                return SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.dangerous, color: Colors.red),
+                          label: const Text(
+                            "Erro ao importar dados para o ForWood! Clique para retornar!",
+                          ),
+                          onPressed: () {
+                            controller.saveOKCadireta.clear();
+                          },
+                        ),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: controller.saveOKCadireta.length,
+                          itemBuilder: (_, index) {
+                            return ListTile(
+                              title: Text(controller.saveOKCadireta[index]),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+              if (controller.saveOKCadireta.isEmpty &&
+                  controller.cadiretaSuccess.value == true) {
+                controller.saveCadiretaLoading.value = false;
+                return SliverToBoxAdapter(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.check_circle, color: Colors.green),
+                    label: const Text(
+                      "Dados importados com sucesso! Importe um novo XML!",
+                    ),
+                    onPressed: () {},
+                  ),
+                );
+              }
+              if (outlite != null && controller.saveOKCadireta.isEmpty) {
+                final modules = outlite.itembox;
+                final n = modules?.length ?? 0;
+                return SliverList(
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    if (index == 0) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          TextButton.icon(
-                            icon: const Icon(Icons.dangerous, color: Colors.red),
-                            label: const Text(
-                              "Erro ao importar dados para o ForWood! Clique para retornar!",
-                            ),
-                            onPressed: () {
-                              controller.saveOKCadireta.clear();
-                            },
-                          ),
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: controller.saveOKCadireta.length,
-                            itemBuilder: (_, index) {
-                              return ListTile(
-                                title: Text(controller.saveOKCadireta[index]),
-                              );
-                            },
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                }
-                if (controller.saveOKCadireta.isEmpty &&
-                    controller.cadiretaSuccess.value == true) {
-                  controller.saveCadiretaLoading.value = false;
-                  return SliverToBoxAdapter(
-                    child: TextButton.icon(
-                      icon: const Icon(Icons.check_circle, color: Colors.green),
-                      label: const Text(
-                        "Dados importados com sucesso! Importe um novo XML!",
-                      ),
-                      onPressed: () {},
-                    ),
-                  );
-                }
-                if (outlite != null && controller.saveOKCadireta.isEmpty) {
-                  final modules = outlite.itembox;
-                  final n = modules?.length ?? 0;
-                  return SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        if (index == 0) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Card(
-                                elevation: 0,
-                                color: cs.surfaceContainerLow,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(
-                                    color: cs.outlineVariant
-                                        .withValues(alpha: 0.45),
-                                  ),
+                          Card(
+                            elevation: 0,
+                            color: cs.surfaceContainerLow,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              side: BorderSide(
+                                color: cs.outlineVariant.withValues(
+                                  alpha: 0.45,
                                 ),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    16,
-                                    14,
-                                    16,
-                                    14,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                16,
+                                14,
+                                16,
+                                14,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Pedido',
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                      color: cs.primary,
+                                    ),
                                   ),
-                                  child: Column(
+                                  const SizedBox(height: 8),
+                                  Wrap(
+                                    spacing: 20,
+                                    runSpacing: 8,
+                                    children: [
+                                      _metaChip(
+                                        theme,
+                                        Icons.calendar_today_outlined,
+                                        'Data',
+                                        outlite.data ?? 'N/A',
+                                      ),
+                                      _metaChip(
+                                        theme,
+                                        Icons.tag_outlined,
+                                        'Número',
+                                        outlite.numero ?? 'N/A',
+                                      ),
+                                      _metaChip(
+                                        theme,
+                                        Icons.description_outlined,
+                                        'RIF',
+                                        outlite.rif,
+                                      ),
+                                      _metaChip(
+                                        theme,
+                                        Icons.account_tree_outlined,
+                                        'Pai',
+                                        outlite.codpai,
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                      );
+                    }
+                    final modIndex = index - 1;
+                    final qtdfinal = multiplicaQtd(
+                      modules![modIndex].qta!,
+                      modules[modIndex].pz!,
+                    );
+                    final itemBox = modules[modIndex];
+                    final forWoodModulo = itemBox.codigoForWoodModulo;
+                    final hasErros = itemBox.totalErrosCount > 0;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (index > 1) const SizedBox(height: 10),
+                        RepaintBoundary(
+                          child: Material(
+                            elevation: 0,
+                            color: cs.surface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              side: BorderSide(
+                                color:
+                                    hasErros
+                                        ? cs.error.withValues(alpha: 0.65)
+                                        : cs.outlineVariant.withValues(
+                                          alpha: 0.55,
+                                        ),
+                                width: hasErros ? 1.5 : 1,
+                              ),
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                14,
+                                12,
+                                12,
+                                12,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        'Pedido',
-                                        style: theme.textTheme.titleSmall
-                                            ?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                          color: cs.primary,
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              itemBox.des ?? 'Sem descrição',
+                                              style: theme.textTheme.titleSmall
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Código ${itemBox.codigo ?? ''} · Qtd $qtdfinal · ${itemBox.l ?? '—'}×${itemBox.a ?? '—'}×${itemBox.p ?? '—'} mm',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: cs.onSurfaceVariant,
+                                                  ),
+                                            ),
+                                            if (forWoodModulo != null) ...[
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'ForWood: $forWoodModulo',
+                                                style: theme
+                                                    .textTheme
+                                                    .labelSmall
+                                                    ?.copyWith(
+                                                      color:
+                                                          cs.onSurfaceVariant,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
-                                      const SizedBox(height: 8),
-                                      Wrap(
-                                        spacing: 20,
-                                        runSpacing: 8,
-                                        children: [
-                                          _metaChip(
-                                            theme,
-                                            Icons.calendar_today_outlined,
-                                            'Data',
-                                            outlite.data ?? 'N/A',
+                                      if (hasErros)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            left: 8,
                                           ),
-                                          _metaChip(
-                                            theme,
-                                            Icons.tag_outlined,
-                                            'Número',
-                                            outlite.numero ?? 'N/A',
+                                          child: Tooltip(
+                                            message:
+                                                '${itemBox.errosProducaoCount} erro(s) produção, ${itemBox.errosCompraCount} erro(s) compra',
+                                            child: Chip(
+                                              avatar: Icon(
+                                                Icons.warning_amber_rounded,
+                                                color: cs.error,
+                                                size: 18,
+                                              ),
+                                              label: Text(
+                                                '${itemBox.totalErrosCount} erro(s)',
+                                                style: theme
+                                                    .textTheme
+                                                    .labelMedium
+                                                    ?.copyWith(color: cs.error),
+                                              ),
+                                              backgroundColor: cs.errorContainer
+                                                  .withValues(alpha: 0.5),
+                                              side: BorderSide.none,
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                            ),
                                           ),
-                                          _metaChip(
-                                            theme,
-                                            Icons.description_outlined,
-                                            'RIF',
-                                            outlite.rif,
-                                          ),
-                                          _metaChip(
-                                            theme,
-                                            Icons.account_tree_outlined,
-                                            'Pai',
-                                            outlite.codpai,
-                                          ),
-                                        ],
-                                      ),
+                                        ),
                                     ],
                                   ),
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                            ],
-                          );
-                        }
-                        final modIndex = index - 1;
-                        final qtdfinal = multiplicaQtd(
-                          modules![modIndex].qta!,
-                          modules[modIndex].pz!,
-                        );
-                        final itemBox = modules[modIndex];
-                        final hasErros = itemBox.totalErrosCount > 0;
-                        final hasPend =
-                            itemBox.totalPendentesCadastroCount > 0;
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (index > 1) const SizedBox(height: 10),
-                            RepaintBoundary(
-                              child: Material(
-                                elevation: 0,
-                                color: cs.surface,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(
-                                    color: hasErros
-                                        ? cs.error.withValues(alpha: 0.65)
-                                        : cs.outlineVariant
-                                            .withValues(alpha: 0.55),
-                                    width: hasErros ? 1.5 : 1,
-                                  ),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.fromLTRB(
-                                    14,
-                                    12,
-                                    12,
-                                    12,
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
+                                  const SizedBox(height: 12),
+                                  Row(
                                     children: [
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  itemBox.des ??
-                                                      'Sem descrição',
-                                                  style: theme
-                                                      .textTheme.titleSmall
-                                                      ?.copyWith(
-                                                    fontWeight:
-                                                        FontWeight.w600,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  'Código ${itemBox.codigo ?? ''} · Qtd $qtdfinal · ${itemBox.l ?? '—'}×${itemBox.a ?? '—'}×${itemBox.p ?? '—'} mm',
-                                                  style: theme
-                                                      .textTheme.bodySmall
-                                                      ?.copyWith(
-                                                    color:
-                                                        cs.onSurfaceVariant,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          if (hasErros)
-                                            Padding(
-                                              padding: const EdgeInsets.only(
-                                                left: 8,
-                                              ),
-                                              child: Tooltip(
-                                                message:
-                                                    '${itemBox.errosProducaoCount} erro(s) produção, ${itemBox.errosCompraCount} erro(s) compra',
-                                                child: Chip(
-                                                  avatar: Icon(
-                                                    Icons
-                                                        .warning_amber_rounded,
-                                                    color: cs.error,
-                                                    size: 18,
-                                                  ),
-                                                  label: Text(
-                                                    '${itemBox.totalErrosCount} erro(s)',
-                                                    style: theme
-                                                        .textTheme.labelMedium
-                                                        ?.copyWith(
-                                                      color: cs.error,
-                                                    ),
-                                                  ),
-                                                  backgroundColor: cs
-                                                      .errorContainer
-                                                      .withValues(alpha: 0.5),
-                                                  side: BorderSide.none,
-                                                  visualDensity:
-                                                      VisualDensity.compact,
-                                                ),
-                                              ),
-                                            ),
-                                          if (hasPend) ...[
-                                            if (hasErros)
-                                              const SizedBox(width: 6),
-                                            Tooltip(
-                                              message:
-                                                  'Cadastrar no PostgreSQL/ForWood',
-                                              child: Chip(
-                                                avatar: Icon(
-                                                  Icons.edit_note_rounded,
-                                                  color: cs.primary,
-                                                  size: 18,
-                                                ),
-                                                label: Text(
-                                                  '${itemBox.totalPendentesCadastroCount} atualizar',
-                                                  style: theme
-                                                      .textTheme.labelMedium
-                                                      ?.copyWith(
-                                                    color: cs.primary,
-                                                  ),
-                                                ),
-                                                backgroundColor: cs
-                                                    .primaryContainer
-                                                    .withValues(alpha: 0.45),
-                                                side: BorderSide.none,
-                                                visualDensity:
-                                                    VisualDensity.compact,
-                                              ),
-                                            ),
-                                          ],
-                                        ],
+                                      FilledButton.tonalIcon(
+                                        onPressed: () {
+                                          widgetproduzidos(
+                                            context,
+                                            outlite,
+                                            modIndex,
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.precision_manufacturing,
+                                          size: 20,
+                                        ),
+                                        label: const Text('Fabricados'),
                                       ),
-                                      const SizedBox(height: 12),
-                                      Row(
-                                        children: [
-                                          FilledButton.tonalIcon(
-                                            onPressed: () {
-                                              widgetproduzidos(
-                                                context,
-                                                outlite,
-                                                modIndex,
-                                              );
-                                            },
-                                            icon: const Icon(
-                                              Icons.precision_manufacturing,
-                                              size: 20,
-                                            ),
-                                            label: const Text('Fabricados'),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          OutlinedButton.icon(
-                                            onPressed: () {
-                                              widgetcomprados(
-                                                context,
-                                                outlite,
-                                                modIndex,
-                                              );
-                                            },
-                                            icon: const Icon(
-                                              Icons.shopping_cart_outlined,
-                                              size: 20,
-                                            ),
-                                            label: const Text('Comprados'),
-                                          ),
-                                        ],
+                                      const SizedBox(width: 8),
+                                      OutlinedButton.icon(
+                                        onPressed: () {
+                                          widgetcomprados(
+                                            context,
+                                            outlite,
+                                            modIndex,
+                                          );
+                                        },
+                                        icon: const Icon(
+                                          Icons.shopping_cart_outlined,
+                                          size: 20,
+                                        ),
+                                        label: const Text('Comprados'),
                                       ),
                                     ],
                                   ),
-                                ),
+                                ],
                               ),
                             ),
-                          ],
-                        );
-                      },
-                      childCount: 1 + n,
-                    ),
-                  );
-                }
-                return const SliverToBoxAdapter(
-                  child: Text('Nenhum dado XML carregado.'),
+                          ),
+                        ),
+                      ],
+                    );
+                  }, childCount: 1 + n),
                 );
-              }),
+              }
+              return const SliverToBoxAdapter(
+                child: Text('Nenhum dado XML carregado.'),
+              );
+            }),
           ),
         ],
       ),
@@ -970,34 +948,36 @@ class DetailsScreen extends StatelessWidget {
     final prices = outlite.itembox![index].itemPrice ?? [];
     showDialog<String>(
       context: context,
-      builder: (ctx) => Dialog.fullscreen(
-        child: Scaffold(
-          backgroundColor: Theme.of(ctx).colorScheme.surface,
-          appBar: AppBar(
-            title: const Text('Itens comprados'),
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(ctx),
+      builder:
+          (ctx) => Dialog.fullscreen(
+            child: Scaffold(
+              backgroundColor: Theme.of(ctx).colorScheme.surface,
+              appBar: AppBar(
+                title: const Text('Itens comprados'),
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+              body:
+                  prices.isEmpty
+                      ? Center(
+                        child: Text(
+                          'Nenhuma linha de compra para este módulo.',
+                          style: Theme.of(ctx).textTheme.bodyLarge,
+                        ),
+                      )
+                      : Scrollbar(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          scrollDirection: Axis.horizontal,
+                          child: SingleChildScrollView(
+                            child: _buildCompradosTable(prices, Theme.of(ctx)),
+                          ),
+                        ),
+                      ),
             ),
           ),
-          body: prices.isEmpty
-              ? Center(
-                  child: Text(
-                    'Nenhuma linha de compra para este módulo.',
-                    style: Theme.of(ctx).textTheme.bodyLarge,
-                  ),
-                )
-              : Scrollbar(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    scrollDirection: Axis.horizontal,
-                    child: SingleChildScrollView(
-                      child: _buildCompradosTable(prices, Theme.of(ctx)),
-                    ),
-                  ),
-                ),
-        ),
-      ),
     );
   }
 
@@ -1009,38 +989,40 @@ class DetailsScreen extends StatelessWidget {
     final pecas = outlite.itembox![index].itemPecas ?? [];
     return showDialog<String>(
       context: context,
-      builder: (ctx) => Dialog.fullscreen(
-        child: Scaffold(
-          backgroundColor: Theme.of(ctx).colorScheme.surface,
-          appBar: AppBar(
-            title: const Text('Itens fabricados'),
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              onPressed: () => Navigator.pop(ctx),
+      builder:
+          (ctx) => Dialog.fullscreen(
+            child: Scaffold(
+              backgroundColor: Theme.of(ctx).colorScheme.surface,
+              appBar: AppBar(
+                title: const Text('Itens fabricados'),
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+              body:
+                  pecas.isEmpty
+                      ? Center(
+                        child: Text(
+                          'Nenhuma peça fabricada para este módulo.',
+                          style: Theme.of(ctx).textTheme.bodyLarge,
+                        ),
+                      )
+                      : Scrollbar(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          scrollDirection: Axis.horizontal,
+                          child: SingleChildScrollView(
+                            child: _buildFabricadosTable(
+                              pecas: pecas,
+                              controller: controller,
+                              dialogContext: ctx,
+                            ),
+                          ),
+                        ),
+                      ),
             ),
           ),
-          body: pecas.isEmpty
-              ? Center(
-                  child: Text(
-                    'Nenhuma peça fabricada para este módulo.',
-                    style: Theme.of(ctx).textTheme.bodyLarge,
-                  ),
-                )
-              : Scrollbar(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    scrollDirection: Axis.horizontal,
-                    child: SingleChildScrollView(
-                      child: _buildFabricadosTable(
-                        pecas: pecas,
-                        controller: controller,
-                        dialogContext: ctx,
-                      ),
-                    ),
-                  ),
-                ),
-        ),
-      ),
     );
   }
 }

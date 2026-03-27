@@ -178,6 +178,46 @@ class SqlServerConnection {
     }
   }
 
+  /// INSERT/UPDATE/DELETE sem conjunto de resultados.
+  Future<bool> executeNonQuery(String sql) async {
+    if (!_isConnected) {
+      AppLogger.w('SQLServer', 'executeNonQuery sem conexão ativa');
+      return false;
+    }
+    try {
+      final pStmt = calloc<IntPtr>();
+      final result = SQLAllocHandle(SQL_HANDLE_STMT, _hDbc, pStmt);
+
+      if (result != SQL_SUCCESS && result != SQL_SUCCESS_WITH_INFO) {
+        calloc.free(pStmt);
+        AppLogger.w('SQLServer', 'executeNonQuery: falha ao alocar statement');
+        return false;
+      }
+
+      final hStmt = pStmt.value;
+      calloc.free(pStmt);
+
+      final queryStr = sql.toNativeUtf16().cast<Uint16>();
+      final execResult = SQLExecDirect(hStmt, queryStr, sql.length);
+      calloc.free(queryStr);
+
+      if (execResult != SQL_SUCCESS && execResult != SQL_SUCCESS_WITH_INFO) {
+        SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+        AppLogger.w(
+          'SQLServer',
+          'executeNonQuery: falha na execução (código $execResult)',
+        );
+        return false;
+      }
+
+      SQLFreeHandle(SQL_HANDLE_STMT, hStmt);
+      return true;
+    } catch (e) {
+      AppLogger.e('SQLServer', 'Erro em executeNonQuery', error: e);
+      return false;
+    }
+  }
+
   Future<void> disconnect() async {
     if (_isConnected) {
       _disconnectDatabase();

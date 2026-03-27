@@ -81,23 +81,21 @@ class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
                         textController: _searchController,
                       ),
                       border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(_kImportedXmlsRadius),
+                        borderRadius: BorderRadius.circular(
+                          _kImportedXmlsRadius,
+                        ),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(_kImportedXmlsRadius),
-                        borderSide: BorderSide(
-                          color: cs.outlineVariant,
+                        borderRadius: BorderRadius.circular(
+                          _kImportedXmlsRadius,
                         ),
+                        borderSide: BorderSide(color: cs.outlineVariant),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(_kImportedXmlsRadius),
-                        borderSide: BorderSide(
-                          color: cs.primary,
-                          width: 2,
+                        borderRadius: BorderRadius.circular(
+                          _kImportedXmlsRadius,
                         ),
+                        borderSide: BorderSide(color: cs.primary, width: 2),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 4,
@@ -121,14 +119,8 @@ class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
                           value: 'numero',
                           child: Text('Número'),
                         ),
-                        const PopupMenuItem(
-                          value: 'rif',
-                          child: Text('RIF'),
-                        ),
-                        const PopupMenuItem(
-                          value: 'pai',
-                          child: Text('Pai'),
-                        ),
+                        const PopupMenuItem(value: 'rif', child: Text('RIF')),
+                        const PopupMenuItem(value: 'pai', child: Text('Pai')),
                       ],
                 ),
                 Obx(
@@ -230,13 +222,9 @@ class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
     final cs = theme.colorScheme;
 
     // Definição estática dos filtros (fora do Obx).
-    final filters = <({
-      String label,
-      String value,
-      Color fg,
-      Color selectedBg,
-      Color outline,
-    })>[
+    final filters = <
+      ({String label, String value, Color fg, Color selectedBg, Color outline})
+    >[
       (
         label: 'Aguardando',
         value: 'aguardando',
@@ -301,8 +289,7 @@ class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
                     selectedColor: f.selectedBg,
                     checkmarkColor: f.fg,
                     labelStyle: theme.textTheme.labelLarge?.copyWith(
-                      color:
-                          selected == f.value ? f.fg : cs.onSurfaceVariant,
+                      color: selected == f.value ? f.fg : cs.onSurfaceVariant,
                       fontWeight:
                           selected == f.value
                               ? FontWeight.w600
@@ -315,8 +302,7 @@ class _ImportedXmlsScreenState extends State<ImportedXmlsScreen> {
                               : cs.outlineVariant.withValues(alpha: 0.6),
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(_kImportedXmlsRadius),
+                      borderRadius: BorderRadius.circular(_kImportedXmlsRadius),
                     ),
                   ),
                 ),
@@ -351,9 +337,7 @@ class _ImportedXmlCardState extends State<_ImportedXmlCard> {
   @override
   void initState() {
     super.initState();
-    _numFabController = TextEditingController(
-      text: xml.numeroFabricacao ?? '',
-    );
+    _numFabController = TextEditingController(text: xml.numeroFabricacao ?? '');
   }
 
   @override
@@ -377,29 +361,20 @@ class _ImportedXmlCardState extends State<_ImportedXmlCard> {
     final cs = theme.colorScheme;
     final dateFmt = DateFormat('dd/MM/yy HH:mm');
 
+    const statusComProducao = {'produzir', 'em_producao', 'finalizado'};
     final podeEnviarProducao =
-        xml.status == 'produzir' &&
+        statusComProducao.contains(xml.status) &&
         xml.numeroFabricacao != null &&
         xml.numeroFabricacao!.trim().isNotEmpty;
 
     final statusItems =
         StatusXml.values
-            .map((status) {
-              if (xml.status == 'em_producao' &&
-                  status.value != 'em_producao' &&
-                  status.value != 'finalizado') {
-                return null;
-              }
-              if (xml.status == 'finalizado' &&
-                  status.value != 'finalizado') {
-                return null;
-              }
-              return DropdownMenuItem<String>(
+            .map(
+              (status) => DropdownMenuItem<String>(
                 value: status.value,
                 child: Text(status.label),
-              );
-            })
-            .whereType<DropdownMenuItem<String>>()
+              ),
+            )
             .toList();
 
     return Card(
@@ -407,9 +382,7 @@ class _ImportedXmlCardState extends State<_ImportedXmlCard> {
       color: cs.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(_kImportedXmlsRadius),
-        side: BorderSide(
-          color: cs.outlineVariant.withValues(alpha: 0.45),
-        ),
+        side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.45)),
       ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
@@ -431,7 +404,10 @@ class _ImportedXmlCardState extends State<_ImportedXmlCard> {
               ],
             ),
             const SizedBox(height: 12),
-            Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.35)),
+            Divider(
+              height: 1,
+              color: cs.outlineVariant.withValues(alpha: 0.35),
+            ),
             const SizedBox(height: 12),
             LayoutBuilder(
               builder: (context, constraints) {
@@ -463,7 +439,10 @@ class _ImportedXmlCardState extends State<_ImportedXmlCard> {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      for (final w in metaRows) ...[w, const SizedBox(height: 6)],
+                      for (final w in metaRows) ...[
+                        w,
+                        const SizedBox(height: 6),
+                      ],
                     ],
                   );
                 }
@@ -555,7 +534,8 @@ class _ImportedXmlCardState extends State<_ImportedXmlCard> {
                     foregroundColor: cs.onPrimary,
                   ),
                 ),
-                if (xml.status == 'produzir' && !podeEnviarProducao)
+                if (statusComProducao.contains(xml.status) &&
+                    !podeEnviarProducao)
                   Tooltip(
                     message: 'Preencha o número de fabricação para enviar.',
                     child: Icon(
@@ -564,40 +544,6 @@ class _ImportedXmlCardState extends State<_ImportedXmlCard> {
                       size: 22,
                     ),
                   ),
-                OutlinedButton.icon(
-                  onPressed: () => widget.controller.abrirCompararVersoes(xml),
-                  icon: const Icon(Icons.compare_arrows, size: 20),
-                  label: const Text('Comparar versões'),
-                ),
-                const SizedBox(width: 4),
-                Obx(() {
-                  final busy =
-                      widget.controller.deletingXmlId.value == xml.id;
-                  return IconButton.filledTonal(
-                    tooltip:
-                        busy
-                            ? 'A excluir…'
-                            : 'Excluir todas as revisões deste XML',
-                    style: IconButton.styleFrom(
-                      foregroundColor: cs.error,
-                    ),
-                    onPressed:
-                        busy
-                            ? null
-                            : () => widget.controller.confirmDelete(xml),
-                    icon:
-                        busy
-                            ? SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: cs.error,
-                              ),
-                            )
-                            : const Icon(Icons.delete_outline),
-                  );
-                }),
               ],
             ),
           ],
@@ -661,10 +607,7 @@ class _MetaLine extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: SelectableText(
-            value,
-            style: theme.textTheme.bodyMedium,
-          ),
+          child: SelectableText(value, style: theme.textTheme.bodyMedium),
         ),
       ],
     );

@@ -9,6 +9,33 @@ import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
 import 'package:math_expressions/math_expressions.dart';
 import 'package:postgres/postgres.dart';
 import 'package:dartt_integraforwood/commom/commom_functions.dart';
+import 'package:dartt_integraforwood/services/app_logger.dart';
+
+({String? referencia, String? prg1, String? prg2}) _listaCorteTupleFromRowMap(
+  Map<dynamic, dynamic> row,
+) {
+  final m = Map<String, dynamic>.from(row);
+  String? pick(List<String> names) {
+    for (final entry in m.entries) {
+      final ek = entry.key.toString().toLowerCase();
+      for (final n in names) {
+        if (ek == n.toLowerCase()) {
+          final v = entry.value;
+          if (v == null) return null;
+          final s = v.toString().trim();
+          return s.isEmpty ? null : s;
+        }
+      }
+    }
+    return null;
+  }
+
+  return (
+    referencia: pick(['referencia']),
+    prg1: pick(['PRG1', 'prg1']),
+    prg2: pick(['PRG2', 'prg2']),
+  );
+}
 
 /// Uma linha em `estrutur` + dimensões do `produto` filho (multiplicidade = quantidade).
 class EstruturFilhoDetalhe {
@@ -24,6 +51,8 @@ class EstruturFilhoDetalhe {
     required this.espessura,
   });
 }
+
+String _escapeSqlStringLiteral(String s) => s.replaceAll("'", "''");
 
 class HomeScreenRepository {
   Future<String?> findProdutoByNomeEMedidas(
@@ -76,6 +105,147 @@ class HomeScreenRepository {
     return null;
   }
 
+  /// Uma linha de [lista_corte] (SQL Server) por número de fabricação e matrícula.
+  ///
+  /// Aceita matrícula no formato `C`+12 dígitos (após aplicar fabricação) ou só o número da matrícula;
+  /// tenta também a coluna [idpeca] como em [consultarListaCorte].
+  Future<({String? referencia, String? prg1, String? prg2})>
+  getListaCorteReferenciaPrg({
+    required String numero,
+    required String matriculaArmazenada,
+  }) async {
+    const empty = (referencia: null, prg1: null, prg2: null);
+    final nTrim = numero.trim();
+    final rawMat = matriculaArmazenada.trim();
+    if (nTrim.isEmpty || rawMat.isEmpty) {
+      return empty;
+    }
+
+    final nEsc = _escapeSqlStringLiteral(nTrim);
+    final matCandidates = <String>{};
+    matCandidates.add(extractMatricola(rawMat));
+    if (RegExp(r'^\d+$').hasMatch(rawMat)) {
+      matCandidates.add(rawMat);
+      final asInt = int.tryParse(rawMat);
+      if (asInt != null) {
+        matCandidates.add(zeroPad(asInt, 6));
+      }
+    }
+
+    try {
+      final mssql = SqlServerConnection.getInstance().mssqlConnection;
+
+      Future<({String? referencia, String? prg1, String? prg2})?> runSql(
+        String sql,
+      ) async {
+        try {
+          final rawResult = await mssql.getData(sql);
+          final parsed = jsonDecode(rawResult) as List<dynamic>;
+          if (parsed.isEmpty || parsed.first is! Map) {
+            return null;
+          }
+          return _listaCorteTupleFromRowMap(parsed.first as Map);
+        } catch (e, st) {
+          AppLogger.e(
+            'lista_corte',
+            'Falha na consulta lista_corte',
+            error: e,
+            stack: st,
+          );
+          return null;
+        }
+      }
+
+      for (final matTry in matCandidates) {
+        if (matTry.isEmpty || matTry == '0') continue;
+        final mEsc = _escapeSqlStringLiteral(matTry);
+        if (mEsc.isEmpty) continue;
+
+        final byMat =
+            "SELECT TOP 1 referencia, PRG1, PRG2 FROM lista_corte "
+            "WHERE LTRIM(RTRIM(CAST(numero AS VARCHAR(50))))='$nEsc' "
+            "AND LTRIM(RTRIM(CAST(mat AS VARCHAR(50))))='$mEsc'";
+        final rowMat = await runSql(byMat);
+        if (rowMat != null) {
+          AppLogger.d(
+            'lista_corte',
+            'Match por mat: numero=$nTrim mat=$matTry',
+          );
+          return rowMat;
+        }
+
+        final idp = formatMatriculaComFabricacao(nTrim, matTry);
+        final idpEsc = _escapeSqlStringLiteral(idp);
+        final byIdPeca =
+            "SELECT TOP 1 referencia, PRG1, PRG2 FROM lista_corte "
+            "WHERE LTRIM(RTRIM(CAST(numero AS VARCHAR(50))))='$nEsc' "
+            "AND LTRIM(RTRIM(CAST(idpeca AS VARCHAR(80))))='$idpEsc'";
+        final rowId = await runSql(byIdPeca);
+        if (rowId != null) {
+          AppLogger.d(
+            'lista_corte',
+            'Match por idpeca: numero=$nTrim idpeca=$idp',
+          );
+          return rowId;
+        }
+      }
+
+      AppLogger.w(
+        'lista_corte',
+        'Nenhuma linha: numero=$nTrim matRaw=$rawMat candidatos=${matCandidates.join(",")}',
+      );
+    } catch (e, st) {
+      AppLogger.e(
+        'lista_corte',
+        'getListaCorteReferenciaPrg',
+        error: e,
+        stack: st,
+      );
+    }
+    return empty;
+  }
+
+  /// Primeira linha em [lista_corte] filtrando só por [numero] (fabricação).
+  ///
+  /// Usado para REF em cadire2: o campo [referencia] é o mesmo em todas as linhas do pedido.
+  Future<({String? referencia, String? prg1, String? prg2})>
+  getListaCortePrimeiraLinhaPorNumero({required String numero}) async {
+    const empty = (referencia: null, prg1: null, prg2: null);
+    final nTrim = numero.trim();
+    if (nTrim.isEmpty) {
+      return empty;
+    }
+    final nEsc = _escapeSqlStringLiteral(nTrim);
+    if (nEsc.isEmpty) {
+      return empty;
+    }
+    try {
+      final mssql = SqlServerConnection.getInstance().mssqlConnection;
+      final sql =
+          "SELECT TOP 1 referencia, PRG1, PRG2 FROM lista_corte "
+          "WHERE LTRIM(RTRIM(CAST(numero AS VARCHAR(50))))='$nEsc'";
+      final rawResult = await mssql.getData(sql);
+      final parsed = jsonDecode(rawResult) as List<dynamic>;
+      if (parsed.isEmpty || parsed.first is! Map) {
+        AppLogger.w(
+          'lista_corte',
+          'getListaCortePrimeiraLinhaPorNumero: sem linhas numero=$nTrim',
+        );
+        return empty;
+      }
+      AppLogger.d('lista_corte', 'TOP 1 lista_corte por numero=$nTrim');
+      return _listaCorteTupleFromRowMap(parsed.first as Map);
+    } catch (e, st) {
+      AppLogger.e(
+        'lista_corte',
+        'getListaCortePrimeiraLinhaPorNumero',
+        error: e,
+        stack: st,
+      );
+    }
+    return empty;
+  }
+
   /// Descrição em `vw_produto` pelo código PostgreSQL.
   Future<String?> getDescricaoVwProduto(String codigoPg) async {
     final connection = PostgresConnection().connection;
@@ -123,10 +293,7 @@ class HomeScreenRepository {
     final pgCod = await findProdutoByNomeEMedidas(pronome, comp, larg, esp);
     if (pgCod != null) {
       final d = await getDescricaoVwProduto(pgCod) ?? pronome;
-      return ProdutoResolveResult(
-        idpeca: d,
-        codigoProdutoPostgres: pgCod,
-      );
+      return ProdutoResolveResult(idpeca: d, codigoProdutoPostgres: pgCod);
     }
 
     return ProdutoResolveResult(
@@ -167,12 +334,7 @@ class HomeScreenRepository {
     if (c.isNotEmpty && await estprodutoExisteEmEstrutur(c)) return c;
     final des = (desModulo ?? '').trim();
     if (des.isEmpty) return null;
-    final pg = await findProdutoByNomeEMedidas(
-      des,
-      l ?? '',
-      a ?? '',
-      p ?? '',
-    );
+    final pg = await findProdutoByNomeEMedidas(des, l ?? '', a ?? '', p ?? '');
     if (pg != null && await estprodutoExisteEmEstrutur(pg)) return pg;
     return null;
   }
@@ -229,9 +391,7 @@ class HomeScreenRepository {
 
     try {
       final result = await connection.execute(
-        Sql.named(
-          'SELECT 1 FROM estrutur WHERE estproduto = @codigo LIMIT 1',
-        ),
+        Sql.named('SELECT 1 FROM estrutur WHERE estproduto = @codigo LIMIT 1'),
         parameters: {'codigo': codigo},
       );
 
@@ -298,6 +458,27 @@ class HomeScreenRepository {
     // Converte cada linha para Map<String, dynamic> de forma segura
     //final lista = result.map((row) => row.toColumnMap()).toList();
     //return jsonEncode(lista);
+  }
+
+  /// Indica se existe estrutura **pendente** do INTEGRACAD: linha(s) com `cadstatus = 'N'`.
+  /// Outros estados não bloqueiam — o fluxo normal apaga a tabela e reimporta.
+  Future<bool> cadiretaHasPendenteStatusN() async {
+    final connection = PostgresConnection().connection;
+    if (connection == null) {
+      return false;
+    }
+    try {
+      final result = await connection.execute(
+        Sql.named(
+          'SELECT 1 FROM cadireta WHERE cadstatus = @st LIMIT 1',
+        ),
+        parameters: {'st': 'N'},
+      );
+      return result.isNotEmpty;
+    } catch (e) {
+      AppLogger.w('ForWood', 'cadiretaHasPendenteStatusN: $e');
+      return false;
+    }
   }
 
   Future<String> deleteCadireta() async {
@@ -485,10 +666,7 @@ class HomeScreenRepository {
         return (seq: 0, cont: 0);
       }
       final m = result.first.toColumnMap();
-      return (
-        seq: _parseSqlInt(m['mseq']),
-        cont: _parseSqlInt(m['mcont']),
-      );
+      return (seq: _parseSqlInt(m['mseq']), cont: _parseSqlInt(m['mcont']));
     } catch (_) {
       return (seq: 0, cont: 0);
     }
@@ -519,17 +697,14 @@ class HomeScreenRepository {
     }
   }
 
-  Future<String> saveCadire2(Cadire2 cadire2, int contador, String s) async {
-    final connection = PostgresConnection().connection;
-
-    if (connection == null) {
-      throw Exception('Erro: Conexão não iniciada');
-    }
-    final query = Sql.named(
-      'INSERT INTO cadire2 (cadinfcont, cadinfprod, cadinfseq, cadinfdes, cadinfinf) '
-      'VALUES (@cadinfcont, @cadinfprod, @cadinfseq, @cadinfdes, @cadinfinf)',
-    );
-    final parameters = {
+  /// Uma linha em [cadire2] — apenas INSERT. A tabela deve estar limpa antes (ex. [saveCadire2Batch]).
+  Future<String> _insertCadire2Once(
+    Connection connection,
+    Cadire2 cadire2,
+    int contador,
+    String s,
+  ) async {
+    final keyParams = <String, Object?>{
       'cadinfcont': cadire2.cadinfcont,
       'cadinfprod': cadire2.cadinfprod,
       'cadinfseq': cadire2.cadinfseq,
@@ -537,10 +712,106 @@ class HomeScreenRepository {
       'cadinfinf': cadire2.cadinfinf,
     };
     try {
-      await connection.execute(query, parameters: parameters);
+      await connection.execute(
+        Sql.named(
+          'INSERT INTO cadire2 (cadinfcont, cadinfprod, cadinfseq, cadinfdes, cadinfinf) '
+          'VALUES (@cadinfcont, @cadinfprod, @cadinfseq, @cadinfdes, @cadinfinf)',
+        ),
+        parameters: keyParams,
+      );
       return "";
     } catch (e) {
       return 'Erro linha $contador da $s: $e';
+    }
+  }
+
+  /// Insere uma linha em [cadire2] (sem apagar a tabela — prefira [saveCadire2Batch] no fluxo normal).
+  Future<String> saveCadire2(Cadire2 cadire2, int contador, String s) async {
+    final connection = PostgresConnection().connection;
+
+    if (connection == null) {
+      throw Exception('Erro: Conexão não iniciada');
+    }
+    return _insertCadire2Once(connection, cadire2, contador, s);
+  }
+
+  /// Apaga toda [cadire2] e insere [items] na mesma transação (ROLLBACK se falhar).
+  Future<String> saveCadire2Batch(List<Cadire2> items) async {
+    final connection = PostgresConnection().connection;
+    if (connection == null) {
+      return 'Erro: Conexão não iniciada';
+    }
+    try {
+      await connection.execute(Sql('BEGIN'));
+    } catch (e) {
+      return 'Erro ao iniciar transação cadire2: $e';
+    }
+    try {
+      await connection.execute(Sql('DELETE FROM cadire2'));
+    } catch (e) {
+      try {
+        await connection.execute(Sql('ROLLBACK'));
+      } catch (_) {}
+      return 'Erro ao apagar cadire2: $e';
+    }
+    for (var i = 0; i < items.length; i++) {
+      final msg = await _insertCadire2Once(connection, items[i], i + 1, 'cadire2');
+      if (msg.isNotEmpty) {
+        try {
+          await connection.execute(Sql('ROLLBACK'));
+        } catch (_) {}
+        return msg;
+      }
+    }
+    try {
+      await connection.execute(Sql('COMMIT'));
+    } catch (e) {
+      return 'Erro ao confirmar transação cadire2: $e';
+    }
+    return "";
+  }
+
+  /// Grava correlação ESP0019 em [ecadmaster.dbo.DT_memocodigos].
+  Future<bool> insertDtMemocodigos({
+    required String numero,
+    required String mat,
+    required String codforwood,
+  }) async {
+    final mssql = SqlServerConnection.getInstance().mssqlConnection;
+    final n = _escapeSqlStringLiteral(numero);
+    final m = _escapeSqlStringLiteral(mat);
+    final c = _escapeSqlStringLiteral(codforwood);
+    final sql =
+        "INSERT INTO ecadmaster.dbo.DT_memocodigos (numero, mat, codforwood) "
+        "VALUES ('$n', '$m', '$c')";
+    return mssql.executeNonQuery(sql);
+  }
+
+  /// Reutiliza [codforwood] já gravado para o mesmo pedido e memo.
+  Future<String?> findCodforwoodMemocodigos({
+    required String numero,
+    required String mat,
+  }) async {
+    final mssql = SqlServerConnection.getInstance().mssqlConnection;
+    final n = _escapeSqlStringLiteral(numero);
+    final m = _escapeSqlStringLiteral(mat);
+    final sql =
+        "SELECT TOP 1 codforwood FROM ecadmaster.dbo.DT_memocodigos "
+        "WHERE numero = '$n' AND mat = '$m'";
+    try {
+      final rawResult = await mssql.getData(sql);
+      final parsed = jsonDecode(rawResult);
+      if (parsed is! List || parsed.isEmpty) return null;
+      final row = parsed.first;
+      if (row is! Map) return null;
+      final map = Map<String, dynamic>.from(row);
+      if (map.containsKey('erro')) return null;
+      final rawCf = map['codforwood'] ?? map['CODFORWOOD'];
+      final v = rawCf?.toString().trim();
+      if (v == null || v.isEmpty) return null;
+      return v;
+    } catch (_) {
+      return null;
     }
   }
 

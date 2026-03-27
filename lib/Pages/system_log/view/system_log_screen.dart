@@ -47,7 +47,10 @@ class SystemLogScreen extends StatelessWidget {
             },
             itemBuilder:
                 (ctx) => [
-                  const PopupMenuItem(value: 'copy', child: Text('Copiar visíveis')),
+                  const PopupMenuItem(
+                    value: 'copy',
+                    child: Text('Copiar visíveis'),
+                  ),
                   const PopupMenuItem(
                     value: 'path',
                     child: Text('Copiar caminho do arquivo'),
@@ -69,15 +72,14 @@ class SystemLogScreen extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: Obx(() {
-              final path = c.logger.logFilePath ?? '(não disponível)';
-              return Text(
-                'Arquivo: $path',
-                style: Theme.of(context).textTheme.bodySmall,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              );
-            }),
+            // Não usar Obx aqui: [logFilePath] não é reativo — Obx sem Rx deixa o GetX
+            // sem dependências e a área pode ficar vazia/cinza.
+            child: Text(
+              'Arquivo: ${c.logger.logFilePath ?? '(não disponível)'}',
+              style: Theme.of(context).textTheme.bodySmall,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -129,18 +131,27 @@ class SystemLogScreen extends StatelessWidget {
           const Divider(height: 16),
           Expanded(
             child: Obx(() {
+              // Obrigatório ler Rx dentro do Obx; caso contrário o GetX não subscreve e a lista fica cinza.
+              c.logUiRevision.value;
+              c.logger.logVersion.value;
+              c.logger.entries.length;
               final list = c.filtered;
               if (list.isEmpty) {
-                return const Center(child: Text('Nenhum registro'));
+                return Center(
+                  child: Text(
+                    'Nenhum registro',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                );
               }
               return ListView.builder(
-                key: ValueKey(
-                  (
-                    c.logUiRevision.value,
-                    c.searchText.value,
-                    c.levelFilter.value,
-                  ),
-                ),
+                key: ValueKey((
+                  c.logUiRevision.value,
+                  c.searchText.value,
+                  c.levelFilter.value,
+                )),
                 controller: c.scrollController,
                 padding: const EdgeInsets.only(bottom: 24),
                 cacheExtent: 320,
@@ -149,7 +160,10 @@ class SystemLogScreen extends StatelessWidget {
                 itemBuilder: (ctx, i) {
                   final e = list[i];
                   return Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.all(10),
                       child: Column(
@@ -163,9 +177,9 @@ class SystemLogScreen extends StatelessWidget {
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: levelColor(e.level).withValues(
-                                    alpha: 0.15,
-                                  ),
+                                  color: levelColor(
+                                    e.level,
+                                  ).withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(

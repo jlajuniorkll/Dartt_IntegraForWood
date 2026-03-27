@@ -84,6 +84,8 @@ class Outlite {
 
 class ItemBox {
   int? riga;
+  /// Número extraído da tag XML [RIGA1] (memo R99 no ESP0019).
+  int? riga1;
   String? codigo;
   String? des;
   String? pz;
@@ -93,8 +95,12 @@ class ItemBox {
   String? p;
   List<ItemPecas>? itemPecas;
   List<ItemPrice>? itemPrice;
+  /// [codforwood] reutilizado de [DT_memocodigos] para o memo R99 desta RIGA (importação).
+  String? codpaiReservadoMemo;
   ItemBox({
     this.riga,
+    this.riga1,
+    this.codpaiReservadoMemo,
     this.codigo,
     this.des,
     this.pz,
@@ -109,6 +115,7 @@ class ItemBox {
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'riga': riga,
+      'riga1': riga1,
       'codigo': codigo,
       'des': des,
       'pz': pz,
@@ -116,6 +123,7 @@ class ItemBox {
       'l': l,
       'a': a,
       'p': p,
+      'codpaiReservadoMemo': codpaiReservadoMemo,
       'itemPecas': itemPecas!.map((x) => x.toMap()).toList(),
       'itemPrice': itemPrice!.map((x) => x.toMap()).toList(),
     };
@@ -124,6 +132,7 @@ class ItemBox {
   factory ItemBox.fromMap(Map<String, dynamic> map) {
     return ItemBox(
       riga: map['riga'] != null ? map['riga'] as int : null,
+      riga1: map['riga1'] != null ? map['riga1'] as int : null,
       codigo: map['codigo'] != null ? map['codigo'] as String : null,
       des: map['des'] != null ? map['des'] as String : null,
       pz: map['pz'] != null ? map['pz'] as String : null,
@@ -131,6 +140,10 @@ class ItemBox {
       l: map['l'] != null ? map['l'] as String : null,
       a: map['a'] != null ? map['a'] as String : null,
       p: map['p'] != null ? map['p'] as String : null,
+      codpaiReservadoMemo:
+          map['codpaiReservadoMemo'] != null
+              ? map['codpaiReservadoMemo'] as String
+              : null,
       itemPecas:
           map['itemPecas'] != null
               ? List<ItemPecas>.from(
@@ -167,8 +180,32 @@ class ItemBox {
       ItemBox.fromMap(json.decode(source) as Map<String, dynamic>);
 }
 
+extension ItemBoxForWoodX on ItemBox {
+  /// Código ForWood do módulo: memo R99 ([codpaiReservadoMemo]) ou, se ausente,
+  /// único [ItemPecas.codpeca] distinto de [codpecaArticoli] (igual à coluna ForWood na UI).
+  String? get codigoForWoodModulo {
+    final c = codigo?.trim() ?? '';
+    final m = codpaiReservadoMemo?.trim();
+    if (m != null && m.isNotEmpty && m != c) return m;
+
+    final pecas = itemPecas;
+    if (pecas == null || pecas.isEmpty) return null;
+    final Set<String> fwDistinct = {};
+    for (final p in pecas) {
+      final fwP = p.codpeca?.trim() ?? '';
+      final ecadP = p.codpecaArticoli?.trim() ?? '';
+      if (fwP.isEmpty) continue;
+      if (ecadP.isNotEmpty && fwP != ecadP) fwDistinct.add(fwP);
+    }
+    if (fwDistinct.length == 1) return fwDistinct.first;
+    return null;
+  }
+}
+
 class ItemPecas {
   String? codpeca;
+  /// Código da linha DISTINTAT / chave [articoli.cod] no SQL Server (não sobrescrito pelo memo).
+  String? codpecaArticoli;
   String? idpeca;
   String? comprimento;
   String? largura;
@@ -198,6 +235,8 @@ class ItemPecas {
   String? status;
   String? fase;
   String? matricula; // Novo campo para armazenar a matrícula
+  /// Número da [RIGA1] do módulo (mesmo valor do [ItemBox.riga1] ao importar).
+  int? riga1;
   /// Código do produto no PostgreSQL/ForWood após mapeamento (código ou nome+medidas).
   String? codigoProdutoPostgres;
   /// true quando existe em articoli mas não cadastrado no PG (UX verde "Atualizar").
@@ -207,6 +246,7 @@ class ItemPecas {
 
   ItemPecas({
     this.codpeca,
+    this.codpecaArticoli,
     this.idpeca,
     this.comprimento,
     this.largura,
@@ -236,6 +276,7 @@ class ItemPecas {
     this.status,
     this.fase,
     this.matricula, // Adicionar ao construtor
+    this.riga1,
     this.codigoProdutoPostgres,
     this.precisaCadastroForWood = false,
     this.descricaoSqlServer,
@@ -247,9 +288,17 @@ class ItemPecas {
   bool get precisaCadastroForWoodUi =>
       precisaCadastroForWood && !hasErroDescricao;
 
+  /// Código eCad / articoli (distinta); se vazio usa [codpeca] (dados antigos).
+  String? get codigoParaArticoli {
+    final a = codpecaArticoli?.trim();
+    if (a != null && a.isNotEmpty) return a;
+    return codpeca?.trim();
+  }
+
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'codpeca': codpeca,
+      'codpecaArticoli': codpecaArticoli,
       'idpeca': idpeca,
       'comprimento': comprimento,
       'largura': largura,
@@ -279,6 +328,7 @@ class ItemPecas {
       'status': status,
       'fase': fase,
       'matricula': matricula, // Adicionar ao mapa
+      'riga1': riga1,
       'codigoProdutoPostgres': codigoProdutoPostgres,
       'precisaCadastroForWood': precisaCadastroForWood,
       'descricaoSqlServer': descricaoSqlServer,
@@ -288,6 +338,10 @@ class ItemPecas {
   factory ItemPecas.fromMap(Map<String, dynamic> map) {
     return ItemPecas(
       codpeca: map['codpeca'] != null ? map['codpeca'] as String : null,
+      codpecaArticoli:
+          map['codpecaArticoli'] != null
+              ? map['codpecaArticoli'] as String
+              : null,
       idpeca: map['idpeca'] != null ? map['idpeca'] as String : null,
       comprimento:
           map['comprimento'] != null ? map['comprimento'] as String : null,
@@ -328,6 +382,7 @@ class ItemPecas {
           map['matricula'] != null
               ? map['matricula'] as String
               : null, // Adicionar ao fromMap
+      riga1: map['riga1'] != null ? map['riga1'] as int : null,
       codigoProdutoPostgres: map['codigoProdutoPostgres'] as String?,
       precisaCadastroForWood: map['precisaCadastroForWood'] == true,
       descricaoSqlServer: map['descricaoSqlServer'] as String?,

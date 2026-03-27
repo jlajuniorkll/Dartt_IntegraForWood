@@ -52,6 +52,38 @@ String extractMatricola(String? matricula) {
   return matricula.trim();
 }
 
+/// Valor de [DT_memocodigos.mat] (memo R99 / D99 / C…) para reutilização no SQL Server.
+///
+/// [isRigaModulo]: true → prefixo `R99`; peça em DISTINTAT sem matrícula → `D99`.
+/// Com matrícula na peça (`!isRigaModulo`): `C` + [extractMatricola] + dimensões.
+String buildDtMemocodigosMat({
+  required bool isRigaModulo,
+  required int sequenciaFallback,
+  int? riga1,
+  String? matricula,
+  String? comprimento,
+  String? largura,
+  String? espessura,
+}) {
+  final hasMatricula = matricula != null && matricula.trim().isNotEmpty;
+  if (!isRigaModulo && hasMatricula) {
+    return 'C${extractMatricola(matricula)}_${[
+      comprimento,
+      largura,
+      espessura,
+    ].join('_')}';
+  }
+  final suffix = riga1 ?? sequenciaFallback;
+  if (suffix > 9999) {
+    AppLogger.w(
+      'DT_memocodigos',
+      'Sufixo memo > 9999 ($suffix); pode exceder 4 dígitos.',
+    );
+  }
+  final letter = isRigaModulo ? 'R' : 'D';
+  return '${letter}99${zeroPad(suffix, 4)}';
+}
+
 /// Função para consultar Lista_corte e buscar PRG1 e PRG2
 Future<Map<String, String>> consultarListaCorte(
   String numeroFabricacao,

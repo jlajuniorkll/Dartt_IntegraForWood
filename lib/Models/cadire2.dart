@@ -78,6 +78,17 @@ class Cadire2 {
     };
   }
 
+  /// Colunas realmente gravadas em `cadire2` (pré-visualização / JSON persistido).
+  Map<String, dynamic> toMapPersisted() {
+    return <String, dynamic>{
+      'cadinfcont': cadinfcont,
+      'cadinfprod': cadinfprod,
+      'cadinfseq': cadinfseq,
+      'cadinfdes': cadinfdes,
+      'cadinfinf': cadinfinf,
+    };
+  }
+
   factory Cadire2.fromMap(Map<String, dynamic> map) {
     return Cadire2(
       cadinfcont: map['cadinfcont'] as int,

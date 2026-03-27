@@ -5,8 +5,15 @@ import 'progress_step.dart';
 class LoadingWidget extends StatelessWidget {
   final String? message;
   final List<ProgressStep>? steps;
+  /// Quando false, só a lista de passos (útil após concluir o fluxo no diálogo).
+  final bool showSpinner;
 
-  const LoadingWidget({super.key, this.message, this.steps});
+  const LoadingWidget({
+    super.key,
+    this.message,
+    this.steps,
+    this.showSpinner = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -17,9 +24,10 @@ class LoadingWidget extends StatelessWidget {
       child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const CircularProgressIndicator(),
+            if (showSpinner) const CircularProgressIndicator(),
+            if (showSpinner && hasSteps) const SizedBox(height: 24),
+            if (!showSpinner && hasSteps) const SizedBox(height: 4),
             if (hasSteps) ...[
-              const SizedBox(height: 24),
               ...stepsList.map(
                 (step) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -43,8 +51,9 @@ class LoadingWidget extends StatelessWidget {
                   ),
                 ),
               ),
-            ] else if (message != null && message!.isNotEmpty) ...[
-              const SizedBox(height: 16),
+            ],
+            if (!hasSteps && message != null && message!.isNotEmpty) ...[
+              if (showSpinner) const SizedBox(height: 16),
               Text(message!),
             ],
           ],

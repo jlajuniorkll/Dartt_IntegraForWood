@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../Models/outlite.dart';
@@ -8,14 +7,10 @@ import '../../../Models/xml_history.dart';
 import '../../../Pages/homescreen/controller/home_screen_controller.dart';
 import '../../../services/xml_importado_service.dart';
 
-import '../view/version_tables_comparison_screen.dart';
 import '../widgets/enviar_producao_dialog.dart';
 
 class ImportedXmlsController extends GetxController {
   final XmlImportadoService _xmlService = XmlImportadoService();
-
-  /// Evita cliques repetidos em excluir e adia o SQLite após fechar o diálogo.
-  final RxnInt deletingXmlId = RxnInt();
 
   // Listas e estados reativos
   final RxList<XmlImportado> xmlsImportados = <XmlImportado>[].obs;
@@ -190,10 +185,6 @@ class ImportedXmlsController extends GetxController {
     }
   }
 
-  void abrirCompararVersoes(XmlImportado xml) {
-    Get.to(() => VersionTablesComparisonScreen(xmlNumero: xml.numero));
-  }
-
   Future<void> applyProductionSuccess(
     XmlImportado xml,
     Outlite outlite,
@@ -220,65 +211,6 @@ class ImportedXmlsController extends GetxController {
     }
   }
 
-  Future<void> confirmDelete(XmlImportado xml) async {
-    if (xml.id == null) return;
-    if (deletingXmlId.value == xml.id) return;
-
-    final ctx = Get.context;
-    if (ctx == null) return;
-
-    final shouldDelete =
-        await showDialog<bool>(
-          context: ctx,
-          barrierDismissible: true,
-          builder: (dCtx) {
-            final cs = Theme.of(dCtx).colorScheme;
-            return AlertDialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              title: const Text('Excluir XML'),
-              content: Text(
-                'Deseja excluir todas as revisões do XML ${xml.numero}? '
-                'Esta ação não pode ser desfeita.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dCtx, false),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: cs.error,
-                    foregroundColor: cs.onError,
-                  ),
-                  onPressed: () => Navigator.pop(dCtx, true),
-                  child: const Text('Excluir'),
-                ),
-              ],
-            );
-          },
-        ) ??
-        false;
-
-    if (!shouldDelete) return;
-
-    deletingXmlId.value = xml.id;
-    await Future<void>.delayed(Duration.zero);
-
-    try {
-      await _xmlService.deleteAllRevisionsByNumero(xml.numero);
-      _allXmls.removeWhere((x) => x.numero == xml.numero);
-      _updateStatusCount();
-      _recomputeAndResetPagination();
-      Get.snackbar('Sucesso', 'Todas as revisões do XML foram excluídas');
-    } catch (e) {
-      Get.snackbar('Erro', 'Falha ao excluir XML: $e');
-    } finally {
-      deletingXmlId.value = null;
-    }
-  }
-
   Future<void> enviarParaProducao(XmlImportado xml) async {
     try {
       if ((xml.numeroFabricacao ?? '').trim().isEmpty) {
@@ -302,10 +234,13 @@ class ImportedXmlsController extends GetxController {
 
       final numeroFabricacao = xml.numeroFabricacao!.trim();
       final homeController = Get.find<HomeScreenController>();
-      homeController.aplicarNumeroFabricacaoAoOutlite(outlite, numeroFabricacao);
+      homeController.aplicarNumeroFabricacaoAoOutlite(
+        outlite,
+        numeroFabricacao,
+      );
 
-      final podeEnviar =
-          await homeController.confirmarEnvioParaForWoodSeNecessario(outlite);
+      final podeEnviar = await homeController
+          .confirmarEnvioParaForWoodSeNecessario(outlite);
       if (!podeEnviar) {
         return;
       }

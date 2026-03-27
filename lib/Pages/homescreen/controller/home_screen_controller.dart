@@ -14,6 +14,7 @@ import 'package:dartt_integraforwood/commom/pdf_service.dart';
 import 'package:dartt_integraforwood/db/postgres_connection.dart';
 import 'package:dartt_integraforwood/db/sqlserver_connection.dart';
 import 'package:dartt_integraforwood/services/app_logger.dart';
+import 'package:dartt_integraforwood/services/conf_ini_service.dart';
 import 'package:dartt_integraforwood/services/xml_importado_service.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -49,16 +50,43 @@ class HomeScreenController extends GetxController {
   // ignore: prefer_final_fields
   List<Map<String, dynamic>> _sentCadiretaData = [];
   String? _lastSavedCadire2Json;
+  /// Preenchido quando o envio cadireta aborta sem erros em [saveOKCadireta] (ex.: INTEGRACAD pendente).
+  String? _cadiretaEnvioAbortMotivo;
+
+  /// Contextos para CADIRE2 + [lista_corte]: matrícula para lookup.
+  /// RIGAX: [cadcont]/[cadfilho]=peça em leitura; [cadpai]=módulo (metadados REF por módulo).
+  /// Distinta: [cadfilho]=CODFIG; [cadinfprodPrg]=código 4.1… da peça RIGAX ([cadpai]), alinhado à [mat].
+  /// [fromDistinta] false = só contexto estrutura; true = 1.º filho distinta → PRG1/PRG2.
+  final List<
+    ({
+      int cadcont,
+      String cadpai,
+      String cadfilho,
+      String mat,
+      bool fromDistinta,
+      String cadinfprodPrg,
+    })
+  >
+  _estruturaCadire2Contexts = [];
+
+  /// Por índice de [ItemBox]: [cadinfcont] da 1.ª linha estrutura gravada (REF seq 2, uma vez por módulo).
+  List<int?> _cadire2RefCadcontPorModulo = [];
 
   // Getters para acessar os dados enviados
   List<Map<String, dynamic>> get sentCadiretaData =>
       List.unmodifiable(_sentCadiretaData);
   String? get lastSavedCadire2Json => _lastSavedCadire2Json;
+  String? get cadiretaEnvioAbortMotivo => _cadiretaEnvioAbortMotivo;
 
   @override
   void onInit() {
     super.onInit();
-    _initializeConnections();
+    _bootstrap();
+  }
+
+  Future<void> _bootstrap() async {
+    await ConfIniService.ensureLoaded();
+    await _initializeConnections();
   }
 
   Future<void> _initializeConnections() async {
@@ -170,7 +198,10 @@ class HomeScreenController extends GetxController {
       ProgressStep(label: 'Analisando XML', status: StepStatus.pending),
       ProgressStep(label: 'Extraindo dados', status: StepStatus.pending),
       ProgressStep(
-        label: totalItems > 0 ? 'Processando item 0 de $totalItems' : 'Processando itens',
+        label:
+            totalItems > 0
+                ? 'Processando item 0 de $totalItems'
+                : 'Processando itens',
         status: StepStatus.pending,
       ),
       ProgressStep(
@@ -191,13 +222,20 @@ class HomeScreenController extends GetxController {
     }
   }
 
-  void _initSaveProgressSteps({int totalModules = 0, bool includeCadire2 = false}) {
+  void _initSaveProgressSteps({
+    int totalModules = 0,
+    bool includeCadire2 = false,
+  }) {
     saveProgressSteps.value = [
-      ProgressStep(label: 'Verificando estrutur...', status: StepStatus.pending),
       ProgressStep(
-        label: totalModules > 0
-            ? 'Processando módulo 0 de $totalModules'
-            : 'Processando módulos',
+        label: 'Verificando estrutur...',
+        status: StepStatus.pending,
+      ),
+      ProgressStep(
+        label:
+            totalModules > 0
+                ? 'Processando módulo 0 de $totalModules'
+                : 'Processando módulos',
         status: StepStatus.pending,
       ),
       ProgressStep(
@@ -243,15 +281,17 @@ class HomeScreenController extends GetxController {
       late final XmlDocument preParsed;
       late final int totalItems;
       if (xmlString.length >= isolateCountThreshold) {
-        totalItems =
-            await Isolate.run(() => xmlRigheItemCountForProgress(xmlString));
+        totalItems = await Isolate.run(
+          () => xmlRigheItemCountForProgress(xmlString),
+        );
         preParsed = XmlDocument.parse(xmlString);
       } else {
         preParsed = XmlDocument.parse(xmlString);
         final righes = preParsed.findAllElements('RIGHE').toList();
-        totalItems = righes.isEmpty
-            ? 0
-            : righes.first.children.whereType<XmlElement>().length;
+        totalItems =
+            righes.isEmpty
+                ? 0
+                : righes.first.children.whereType<XmlElement>().length;
       }
 
       _initLoadProgressSteps(totalItems: totalItems);
@@ -266,7 +306,11 @@ class HomeScreenController extends GetxController {
       isLoading.value = false;
       AppLogger.i('XML', 'Importado: $fileName');
     } catch (e) {
-      AppLogger.e('XML', 'Falha ao carregar/analisar XML ($fileName)', error: e);
+      AppLogger.e(
+        'XML',
+        'Falha ao carregar/analisar XML ($fileName)',
+        error: e,
+      );
       isLoading.value = false;
     }
   }
@@ -284,11 +328,11 @@ class HomeScreenController extends GetxController {
       final righeElement = righes.first;
       final righeList = righeElement.children.whereType<XmlElement>().toList();
 
-      // Ler CODPAIPED antes de criar o outlite
-      codMestre =
-          parsedXml.findAllElements('CODPAIPED').isNotEmpty
-              ? parsedXml.findAllElements('CODPAIPED').first.innerText
-              : '6.8.0.0108';
+      // CODPAIPED: vazio se a tag não existir ou o texto for em branco
+      final codpaiNodes = parsedXml.findAllElements('CODPAIPED');
+      final codpaiRaw =
+          codpaiNodes.isNotEmpty ? codpaiNodes.first.innerText.trim() : '';
+      codMestre = codpaiRaw;
 
       _updateLoadStep(1, StepStatus.done);
       _updateLoadStep(2, StepStatus.current); // Processando itens
@@ -313,10 +357,12 @@ class HomeScreenController extends GetxController {
         codpai: codMestre,
       );
 
-      outlite.codpaiPedidoExisteNaEstrutur =
-          await homeScreenRepository.estprodutoExisteEmEstrutur(outlite.codpai);
+      outlite.codpaiPedidoExisteNaEstrutur = await homeScreenRepository
+          .estprodutoExisteEmEstrutur(outlite.codpai);
 
       final List<ItemBox> itemBoxList = [];
+      final distintaSeqHolder = <int>[0];
+      final numeroStr = outlite.numero ?? '';
       /*codMestre =
           parsedXml
               .findAllElements('CODPAIPED')
@@ -352,9 +398,29 @@ class HomeScreenController extends GetxController {
           distintatLines[codigo] = lines;
         }
 
+        final riga1Numero =
+            riga.findElements('RIGA1').isNotEmpty
+                ? parseRiga1Numero(riga.findElements('RIGA1').first.innerText)
+                : null;
+
+        String? codpaiMemo;
+        if (sqlServerConnected.value && numeroStr.isNotEmpty) {
+          final matRiga = buildDtMemocodigosMat(
+            isRigaModulo: true,
+            sequenciaFallback: i + 1,
+            riga1: riga1Numero,
+          );
+          codpaiMemo = await homeScreenRepository.findCodforwoodMemocodigos(
+            numero: numeroStr,
+            mat: matRiga,
+          );
+        }
+
         itemBoxList.add(
           ItemBox(
             riga: int.tryParse(codigo),
+            riga1: riga1Numero,
+            codpaiReservadoMemo: codpaiMemo,
             codigo: codigo,
             des:
                 riga.findElements('DES').isNotEmpty
@@ -387,6 +453,8 @@ class HomeScreenController extends GetxController {
                   ? testa.findElements('NUMERO').first.innerText
                   : null,
               outlite, // Passar o objeto outlite
+              riga1Modulo: riga1Numero,
+              distintaSeqHolder: distintaSeqHolder,
             ),
             itemPrice: await getPriceItems(
               dettprezzoLines,
@@ -434,8 +502,10 @@ class HomeScreenController extends GetxController {
     RxMap<String, List<String>>? distintatLines,
     String? codigo,
     String? numeroXml,
-    Outlite? outlite,
-  ) async {
+    Outlite? outlite, {
+    int? riga1Modulo,
+    required List<int> distintaSeqHolder,
+  }) async {
     List<ItemPecas> itemPecas = [];
     List<String> distintatSplited = [];
     String trabalhoesq = "N";
@@ -483,17 +553,42 @@ class HomeScreenController extends GetxController {
             fitatra = partes[7].split('/')[7];
           }
 
-          final resolved = await homeScreenRepository.resolveProdutoComDimensoes(
-            partes[0],
-            partes[3],
-            partes[4],
-            partes[5],
-          );
-          final codPg = resolved.codigoProdutoPostgres ?? partes[0];
+          distintaSeqHolder[0]++;
+          final distintaSeq = distintaSeqHolder[0];
+          final codPecaXml = partes[0];
+          String codResolver = codPecaXml;
+          if (sqlServerConnected.value && (numeroXml ?? '').isNotEmpty) {
+            final matDist = buildDtMemocodigosMat(
+              isRigaModulo: false,
+              sequenciaFallback: distintaSeq,
+              riga1: riga1Modulo,
+              matricula: matricula,
+              comprimento: partes[3],
+              largura: partes[4],
+              espessura: partes[5],
+            );
+            final fw = await homeScreenRepository.findCodforwoodMemocodigos(
+              numero: numeroXml!,
+              mat: matDist,
+            );
+            if (fw != null && fw.isNotEmpty) {
+              codResolver = fw;
+            }
+          }
+
+          final resolved = await homeScreenRepository
+              .resolveProdutoComDimensoes(
+                codResolver,
+                partes[3],
+                partes[4],
+                partes[5],
+              );
+          final codPg = resolved.codigoProdutoPostgres ?? codResolver;
 
           itemPecas.add(
             ItemPecas(
-              codpeca: partes[0],
+              codpeca: codResolver,
+              codpecaArticoli: codPecaXml,
               idpeca: resolved.idpeca,
               qta: partes[1],
               comprimento: partes[3],
@@ -510,6 +605,7 @@ class HomeScreenController extends GetxController {
               fitafre: fitafre,
               fitatra: fitatra,
               matricula: matricula,
+              riga1: riga1Modulo,
               codigoProdutoPostgres: resolved.codigoProdutoPostgres,
               precisaCadastroForWood: resolved.precisaCadastroForWood,
               descricaoSqlServer: resolved.descricaoSqlServer,
@@ -551,7 +647,10 @@ class HomeScreenController extends GetxController {
 
   /// Envia Outlite para ForWood (cadireta, cadiredi e cadire2).
   /// Usado no Fluxo 5 (enviar para produção a partir da lista de XMLs importados).
-  Future<bool> enviarOutliteParaForWood(Outlite outlite) async {
+  Future<bool> enviarOutliteParaForWood(
+    Outlite outlite, {
+    void Function(List<Map<String, dynamic>> rows)? onCadiretaSuccessPreview,
+  }) async {
     saveCadiretaLoading.value = true;
     final totalModules = outlite.itembox?.length ?? 0;
     _initSaveProgressSteps(totalModules: totalModules, includeCadire2: true);
@@ -579,11 +678,26 @@ class HomeScreenController extends GetxController {
         return false;
       }
 
-      // Inserir CADIRE2 (informações de produção)
-      _updateSaveStep(4, StepStatus.current, label: 'Inserindo cadire2');
-      await _saveCadire2(outlite);
-      _updateSaveStep(4, StepStatus.done);
-      _updateSaveStep(5, StepStatus.done);
+      if (!cadiretaSuccess.value) {
+        saveCadiretaLoading.value = false;
+        return false;
+      }
+
+      final listaCadire2 = await _buildCadire2FromContexts(outlite);
+      onCadiretaSuccessPreview?.call(
+        listaCadire2.map((c) => c.toMapPersisted()).toList(),
+      );
+
+      // Inserir CADIRE2 (lista_corte + chaves cadireta) — índices alinham com includeCadire2
+      final cadire2Step = saveProgressSteps.length - 2;
+      final finalizeStep = saveProgressSteps.length - 1;
+      _updateSaveStep(cadire2Step, StepStatus.current, label: 'Inserindo cadire2');
+      await _saveCadire2FromList(listaCadire2);
+      if (saveOKCadireta.isNotEmpty) {
+        cadiretaSuccess.value = false;
+      }
+      _updateSaveStep(cadire2Step, StepStatus.done);
+      _updateSaveStep(finalizeStep, StepStatus.done);
 
       saveCadiretaLoading.value = false;
       if (cadiretaSuccess.value) {
@@ -598,7 +712,10 @@ class HomeScreenController extends GetxController {
   }
 
   /// Aplica numeroFabricacao ao Outlite e atualiza matrículas nos ItemPecas/ItemPrice.
-  void aplicarNumeroFabricacaoAoOutlite(Outlite outlite, String numeroFabricacao) {
+  void aplicarNumeroFabricacaoAoOutlite(
+    Outlite outlite,
+    String numeroFabricacao,
+  ) {
     outlite.numeroFabricacao = numeroFabricacao;
     for (final box in outlite.itembox ?? []) {
       for (final pec in box.itemPecas ?? []) {
@@ -620,92 +737,141 @@ class HomeScreenController extends GetxController {
     }
   }
 
-  /// Constrói e salva registros CADIRE2 a partir do Outlite (somente INSERT; não apaga a tabela nem o projeto).
-  Future<void> _saveCadire2(Outlite outlite) async {
-    final cadinfprod = outlite.numeroFabricacao ?? outlite.numero ?? '';
-    if (cadinfprod.isEmpty) return;
-
-    final maxCounters =
-        await homeScreenRepository.getCadire2MaxCountersForProd(cadinfprod);
-    final lista = _buildCadire2List(
-      outlite,
-      startCadinfseq: maxCounters.seq + 1,
-      startCadinfcont: maxCounters.cont + 1,
-    );
-    _lastSavedCadire2Json = jsonEncode(lista.map((c) => c.toMap()).toList());
-    int seq = 1;
-    for (final c2 in lista) {
-      final err = await homeScreenRepository.saveCadire2(c2, seq, 'cadire2');
-      if (err.isNotEmpty) saveOKCadireta.add(err);
-      seq++;
+  /// Monta CADIRE2 a partir de [lista_corte] e dos contextos gravados.
+  ///
+  /// REF módulo (seq 2): uma vez por [ItemBox] — [cadinfprod]=[cadinfinf]=[codigoForWoodModulo];
+  /// [cadinfdes] via [lista_corte] só por número.
+  /// PRG: seq 3/4 (ou só 3) por peça fabricada (distinta). Depois, **um** REF (seq 2) por [cadinfcont]
+  /// com os mesmos [cadinfcont], [cadinfprod] e [cadinfinf] do PRG ([codfig]); [cadinfdes]=referência
+  /// na mesma linha [lista_corte] (matrícula).
+  Future<List<Cadire2>> _buildCadire2FromContexts(Outlite outlite) async {
+    final numeroFab = (outlite.numeroFabricacao ?? '').trim();
+    if (numeroFab.isEmpty) {
+      return [];
     }
-  }
-
-  /// Monta lista de Cadire2 a partir do Outlite (ItemBox -> ItemPecas).
-  List<Cadire2> _buildCadire2List(
-    Outlite outlite, {
-    int startCadinfseq = 1,
-    int startCadinfcont = 1,
-  }) {
-    final cadinfprod = outlite.numeroFabricacao ?? outlite.numero ?? '';
+    final boxes = outlite.itembox ?? [];
+    final temRef =
+        _cadire2RefCadcontPorModulo.any((e) => e != null);
+    if (!temRef && _estruturaCadire2Contexts.isEmpty) {
+      return [];
+    }
     final lista = <Cadire2>[];
-    int cadinfcont = startCadinfcont;
-    int cadinfseq = startCadinfseq;
 
-    for (final box in outlite.itembox ?? []) {
-      for (final pec in box.itemPecas ?? []) {
+    final rowRefOnce = await homeScreenRepository
+        .getListaCortePrimeiraLinhaPorNumero(numero: numeroFab);
+    final refTxt = (rowRefOnce.referencia ?? '').trim();
+
+    for (var mi = 0; mi < boxes.length; mi++) {
+      if (mi >= _cadire2RefCadcontPorModulo.length) break;
+      final cadcontRef = _cadire2RefCadcontPorModulo[mi];
+      if (cadcontRef == null) continue;
+      final fw = boxes[mi].codigoForWoodModulo?.trim() ?? '';
+      if (fw.isEmpty || refTxt.isEmpty) continue;
+      lista.add(
+        Cadire2(
+          cadinfcont: cadcontRef,
+          cadinfprod: fw,
+          cadinfseq: 2,
+          cadinfdes: refTxt,
+          cadinfinf: fw,
+        ),
+      );
+    }
+
+    for (final ctx in _estruturaCadire2Contexts) {
+      if (!ctx.fromDistinta) continue;
+
+      final mat = ctx.mat.trim();
+      if (mat.isEmpty) continue;
+      final row = await homeScreenRepository.getListaCorteReferenciaPrg(
+        numero: numeroFab,
+        matriculaArmazenada: mat,
+      );
+
+      final codfigComprado = ctx.cadfilho.trim();
+      final prod41 = ctx.cadinfprodPrg.trim();
+      if (codfigComprado.isEmpty || prod41.isEmpty) continue;
+
+      final p1 = (row.prg1 ?? '').trim();
+      final p2 = (row.prg2 ?? '').trim();
+      final refPeca = (row.referencia ?? '').trim();
+      var inseriuPrg = false;
+      if (p1.isNotEmpty && p2.isNotEmpty) {
         lista.add(
           Cadire2(
-            cadinfcont: cadinfcont,
-            cadinfprod: cadinfprod,
-            cadinfseq: cadinfseq,
-            cadinfdes: pec.idpeca ?? pec.codpeca ?? '',
-            cadinfinf: pec.codpeca ?? '',
+            cadinfcont: ctx.cadcont,
+            cadinfprod: prod41,
+            cadinfseq: 3,
+            cadinfdes: p1,
+            cadinfinf: codfigComprado,
           ),
         );
-        cadinfcont++;
-        cadinfseq++;
+        lista.add(
+          Cadire2(
+            cadinfcont: ctx.cadcont,
+            cadinfprod: prod41,
+            cadinfseq: 4,
+            cadinfdes: p2,
+            cadinfinf: codfigComprado,
+          ),
+        );
+        inseriuPrg = true;
+      } else if (p1.isNotEmpty) {
+        lista.add(
+          Cadire2(
+            cadinfcont: ctx.cadcont,
+            cadinfprod: prod41,
+            cadinfseq: 3,
+            cadinfdes: p1,
+            cadinfinf: codfigComprado,
+          ),
+        );
+        inseriuPrg = true;
+      } else if (p2.isNotEmpty) {
+        lista.add(
+          Cadire2(
+            cadinfcont: ctx.cadcont,
+            cadinfprod: prod41,
+            cadinfseq: 3,
+            cadinfdes: p2,
+            cadinfinf: codfigComprado,
+          ),
+        );
+        inseriuPrg = true;
+      }
+      if (inseriuPrg && refPeca.isNotEmpty) {
+        lista.add(
+          Cadire2(
+            cadinfcont: ctx.cadcont,
+            cadinfprod: prod41,
+            cadinfseq: 2,
+            cadinfdes: refPeca,
+            cadinfinf: codfigComprado,
+          ),
+        );
       }
     }
     return lista;
   }
 
-  /// Pré-visualização das linhas CADIRE2 que serão gravadas (mesma lógica de [_saveCadire2]).
-  Future<List<Map<String, dynamic>>> previewCadire2MapsForOutlite(
-    Outlite outlite,
-  ) async {
-    final cadinfprod = outlite.numeroFabricacao ?? outlite.numero ?? '';
-    if (cadinfprod.isEmpty) return [];
-    final maxCounters =
-        await homeScreenRepository.getCadire2MaxCountersForProd(cadinfprod);
-    final lista = _buildCadire2List(
-      outlite,
-      startCadinfseq: maxCounters.seq + 1,
-      startCadinfcont: maxCounters.cont + 1,
+  Future<void> _saveCadire2FromList(List<Cadire2> lista) async {
+    _lastSavedCadire2Json = jsonEncode(
+      lista.map((c) => c.toMapPersisted()).toList(),
     );
-    return lista.map((c) => c.toMap()).toList();
+    final err = await homeScreenRepository.saveCadire2Batch(lista);
+    if (err.isNotEmpty) saveOKCadireta.add(err);
   }
 
-  /// Se houver erros ou itens "Atualizar", pergunta se o usuário deseja enviar assim mesmo.
-  /// Retorna `true` para prosseguir com o envio.
+  /// Se houver erros na resolução de produtos, pergunta se o usuário deseja enviar assim mesmo.
   Future<bool> confirmarEnvioParaForWoodSeNecessario(Outlite outlite) async {
     final nErros = outlite.totalErrosCount;
-    final nAtualizar = outlite.totalPendentesCadastroCount;
-    if (nErros == 0 && nAtualizar == 0) {
+    if (nErros == 0) {
       return true;
     }
 
-    final partes = <String>[];
-    if (nErros > 0) {
-      partes.add(
-        '$nErros erro${nErros == 1 ? '' : 's'} (produto não encontrado ou falha na resolução)',
-      );
-    }
-    if (nAtualizar > 0) {
-      partes.add(
-        '$nAtualizar atualização${nAtualizar == 1 ? '' : 'ões'} pendente${nAtualizar == 1 ? '' : 's'} no ForWood (cadastrar no PostgreSQL)',
-      );
-    }
+    final partes = <String>[
+      '$nErros erro${nErros == 1 ? '' : 's'} (produto não encontrado ou falha na resolução)',
+    ];
 
     return await Get.dialog<bool>(
           AlertDialog(
@@ -735,15 +901,51 @@ class HomeScreenController extends GetxController {
     // Inicia arquivo de log do pedido ao enviar para ForWood
     final numeroPedido = outlite?.numero ?? '';
     initPedidoLog(numeroPedido);
-    AppLogger.i('ForWood', 'Início envio cadireta/cadiredi pedido $numeroPedido');
+    AppLogger.i(
+      'ForWood',
+      'Início envio cadireta/cadiredi pedido $numeroPedido',
+    );
 
     if (outliteData.value != null) {
+      final ol = outliteData.value!;
+      final numPed = (ol.numero ?? '').trim();
+      if (numPed.isNotEmpty) {
+        final jaImportado = await xmlImportadoService.xmlExists(numPed);
+        if (jaImportado) {
+          final continuar =
+              await Get.dialog<bool>(
+                AlertDialog(
+                  title: const Text('XML já importado'),
+                  content: Text(
+                    'O pedido nº $numPed já consta nos XMLs importados.\n\n'
+                    'Deseja enviar para o ForWood mesmo assim?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Get.back(result: false),
+                      child: const Text('Não'),
+                    ),
+                    ElevatedButton(
+                      onPressed: () => Get.back(result: true),
+                      child: const Text('Sim'),
+                    ),
+                  ],
+                ),
+              ) ??
+              false;
+          if (!continuar) {
+            saveCadiretaLoading.value = false;
+            return;
+          }
+        }
+      }
+
       // Salvar no banco PostgreSQL (ForWood)
-      await saveCadireta(outliteData.value!);
+      await saveCadireta(ol);
 
       // Se o salvamento foi bem-sucedido, salvar também no SQLite
       if (saveOKCadireta.isEmpty && cadiretaSuccess.value == true) {
-        await _saveXmlToSqlite(outliteData.value!, xmlString);
+        await _saveXmlToSqlite(ol, xmlString);
         AppLogger.i('ForWood', 'Envio concluído com sucesso ($numeroPedido)');
       } else if (saveOKCadireta.isNotEmpty) {
         AppLogger.e(
@@ -774,7 +976,8 @@ class HomeScreenController extends GetxController {
         rif: outlite.rif,
         pai: outlite.codpai,
         data: outlite.dataDesenho ?? DateTime.now().toIso8601String(),
-        numeroFabricacao: '', // Será preenchido pelo usuário posteriormente
+        numeroFabricacao:
+            '', // Preenchido na lista de importados; preservado se já existir
         status: StatusXml.aguardando.value,
         jsonCadiredi: jsonCadiredi,
         jsonCadireta: jsonCadireta,
@@ -784,59 +987,27 @@ class HomeScreenController extends GetxController {
         updatedAt: DateTime.now(),
       );
 
-      // Tentar salvar no SQLite com verificação de duplicata
-      try {
-        await xmlImportadoService.insertOrUpdateXmlImportado(xmlImportado);
-      } catch (e) {
-        if (e.toString().contains('XML_ALREADY_EXISTS')) {
-          // Mostrar diálogo de confirmação
-          final shouldOverwrite = await _showOverwriteDialog(
-            outlite.numero ?? '',
-          );
+      final latest = await xmlImportadoService.getLatestRevisionByNumero(
+        xmlImportado.numero,
+      );
+      final toSave =
+          latest != null
+              ? xmlImportado.copyWith(
+                id: latest.id,
+                revisao: latest.revisao,
+                numeroFabricacao:
+                    (latest.numeroFabricacao ?? '').trim().isNotEmpty
+                        ? latest.numeroFabricacao
+                        : xmlImportado.numeroFabricacao,
+                status: latest.status,
+                createdAt: latest.createdAt,
+              )
+              : xmlImportado;
 
-          if (shouldOverwrite) {
-            try {
-              await xmlImportadoService.insertOrUpdateXmlImportado(
-                xmlImportado,
-                forceUpdate: true,
-              );
-              Get.snackbar(
-                'Sucesso',
-                'Nova revisão criada com sucesso!',
-                backgroundColor: Colors.green,
-                colorText: Colors.white,
-              );
-            } catch (revisionError) {
-              if (revisionError.toString().contains(
-                'está em produção ou finalizado',
-              )) {
-                Get.snackbar(
-                  'Erro',
-                  'Não é possível criar nova revisão. O XML está em produção ou finalizado.',
-                  backgroundColor: Colors.red,
-                  colorText: Colors.white,
-                );
-              } else {
-                Get.snackbar(
-                  'Erro',
-                  'Erro ao criar nova revisão: $revisionError',
-                  backgroundColor: Colors.red,
-                  colorText: Colors.white,
-                );
-              }
-            }
-          } else {
-            Get.snackbar(
-              'Cancelado',
-              'Operação cancelada pelo usuário.',
-              backgroundColor: Colors.orange,
-              colorText: Colors.white,
-            );
-          }
-        } else {
-          rethrow;
-        }
-      }
+      await xmlImportadoService.insertOrUpdateXmlImportado(
+        toSave,
+        forceUpdate: latest != null,
+      );
     } catch (e) {
       AppLogger.e('SQLite', 'Erro ao salvar XML importado', error: e);
       Get.snackbar(
@@ -846,30 +1017,6 @@ class HomeScreenController extends GetxController {
         colorText: Colors.white,
       );
     }
-  }
-
-  // Método para mostrar diálogo de confirmação
-  Future<bool> _showOverwriteDialog(String numeroXml) async {
-    return await Get.dialog<bool>(
-          AlertDialog(
-            title: const Text('XML Duplicado'),
-            content: Text(
-              'Já existe um XML com o número "$numeroXml".\n\nDeseja criar uma nova revisão?\nAo criar uma nova revisão, os dados anteriores serão mantidos.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Get.back(result: false),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () => Get.back(result: true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                child: const Text('Criar Nova Revisão'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
   }
 
   // Métodos para coletar dados JSON das tabelas
@@ -931,8 +1078,8 @@ class HomeScreenController extends GetxController {
             }
           }
 
-          final resolvedCompra =
-              await homeScreenRepository.resolveProdutoCodigoCompra(partesDP[1]);
+          final resolvedCompra = await homeScreenRepository
+              .resolveProdutoCodigoCompra(partesDP[1]);
 
           itemPrice.add(
             ItemPrice(
@@ -1012,8 +1159,9 @@ class HomeScreenController extends GetxController {
       final k = _estruturMultisetKey(codResolved, comp, larg, esp);
       map[k] = (map[k] ?? 0) + q;
 
-      if (itemPeca.codpeca != null &&
-          itemPeca.codpeca!.isNotEmpty &&
+      final codArt = itemPeca.codigoParaArticoli;
+      if (codArt != null &&
+          codArt.isNotEmpty &&
           double.tryParse(itemPeca.comprimento ?? '') != null &&
           double.tryParse(itemPeca.largura ?? '') != null &&
           double.tryParse(itemPeca.espessura ?? '') != null &&
@@ -1021,7 +1169,7 @@ class HomeScreenController extends GetxController {
           double.parse(itemPeca.largura!) >= 0 &&
           double.parse(itemPeca.espessura!) >= 0) {
         final result = await getEstruturaExpandida(
-          itemPeca.codpeca!,
+          codArt,
           itemPeca.variaveis ?? '',
           itemPeca.comprimento!,
           itemPeca.largura!,
@@ -1029,21 +1177,16 @@ class HomeScreenController extends GetxController {
         );
         if (result.isNotEmpty && result != 'Erro') {
           try {
-            final estrutura =
-                List<Map<String, dynamic>>.from(json.decode(result));
+            final estrutura = List<Map<String, dynamic>>.from(
+              json.decode(result),
+            );
             for (final item in estrutura) {
               final codfig = item['CODFIG']?.toString().trim() ?? '';
               if (codfig.isEmpty) continue;
               final qtyStr = item['QTA']?.toString() ?? '0';
-              final qty =
-                  double.tryParse(qtyStr.replaceAll(',', '.')) ?? 0.0;
-              final resFig =
-                  await homeScreenRepository.resolveProdutoComDimensoes(
-                codfig,
-                comp,
-                larg,
-                esp,
-              );
+              final qty = double.tryParse(qtyStr.replaceAll(',', '.')) ?? 0.0;
+              final resFig = await homeScreenRepository
+                  .resolveProdutoComDimensoes(codfig, comp, larg, esp);
               final codPg = resFig.codigoProdutoPostgres ?? codfig;
               final k2 = _estruturMultisetKey(codPg, comp, larg, esp);
               map[k2] = (map[k2] ?? 0) + qty;
@@ -1063,11 +1206,35 @@ class HomeScreenController extends GetxController {
   }) async {
     // Limpar dados anteriores
     _sentCadiretaData.clear();
+    _estruturaCadire2Contexts.clear();
+    _cadire2RefCadcontPorModulo = [];
     saveOKCadireta.clear();
+    _cadiretaEnvioAbortMotivo = null;
+
+    await ConfIniService.ensureLoaded();
 
     final totalModules = outlite.itembox?.length ?? 0;
     if (!progressAlreadyInited) {
       _initSaveProgressSteps(totalModules: totalModules);
+    }
+
+    if (await homeScreenRepository.cadiretaHasPendenteStatusN()) {
+      cadiretaSuccess.value = false;
+      final msg =
+          'Já existe uma estrutura importada na cadireta à espera de executar o INTEGRACAD.\n\n'
+          'Não é possível enviar nova estrutura até essa situação ser resolvida.';
+      _cadiretaEnvioAbortMotivo = msg;
+      await Get.dialog<void>(
+        AlertDialog(
+          title: const Text('Estrutura pendente'),
+          content: Text(msg),
+          actions: [
+            TextButton(onPressed: () => Get.back(), child: const Text('OK')),
+          ],
+        ),
+        barrierDismissible: false,
+      );
+      return;
     }
 
     _updateSaveStep(0, StepStatus.current); // Verificando estrutur
@@ -1075,13 +1242,14 @@ class HomeScreenController extends GetxController {
     final prefs = await SharedPreferences.getInstance();
     final codbatismocorte = prefs.getString('codbatismocorte') ?? '4.1.';
     final codbatismomodulo = prefs.getString('codbatismomodulo') ?? '52';
+    final numeroXml = outlite.numero ?? '';
 
     // Fase 1: Determinar codpai para cada ItemBox (reutilizar ou ESP0019)
     final List<String> codpaiPorModulo = [];
 
     var pedidoTemEstruturNaPg = outlite.codpaiPedidoExisteNaEstrutur;
-    pedidoTemEstruturNaPg ??=
-        await homeScreenRepository.estprodutoExisteEmEstrutur(outlite.codpai);
+    pedidoTemEstruturNaPg ??= await homeScreenRepository
+        .estprodutoExisteEmEstrutur(outlite.codpai);
     outlite.codpaiPedidoExisteNaEstrutur = pedidoTemEstruturNaPg;
     if (pedidoTemEstruturNaPg != true) {
       _limparFlagsPendenteCadastroForWood(outlite);
@@ -1097,47 +1265,75 @@ class HomeScreenController extends GetxController {
 
       String codpai;
       if (pedidoTemEstruturNaPg != true) {
-        codpai = await executaEspecialESP0019(
-          codbatismocorte,
-          500,
-          8,
-          i + 1,
-          'P',
-        );
+        final memoPai = oi.codpaiReservadoMemo?.trim();
+        codpai =
+            (memoPai != null && memoPai.isNotEmpty)
+                ? memoPai
+                : await reservarCodigoEsp0019ComMemo(
+                  repository: homeScreenRepository,
+                  sqlServerConnected: sqlServerConnected.value,
+                  batismo: codbatismocorte,
+                  grupo: 500,
+                  subgrupo: 8,
+                  sequencia: i + 1,
+                  type: 'P',
+                  numeroXml: numeroXml,
+                  riga1: oi.riga1,
+                  itemPecaForMemo: null,
+                );
       } else {
         final expectedMultiset = await _getExpectedFilhosMultiset(oi);
-        final estParent =
-            await homeScreenRepository.resolveEstprodutoParaEstrutur(
-          codigoRiga: oi.codigo,
-          desModulo: oi.des,
-          l: oi.l,
-          a: oi.a,
-          p: oi.p,
-        );
+        final estParent = await homeScreenRepository
+            .resolveEstprodutoParaEstrutur(
+              codigoRiga: oi.codigo,
+              desModulo: oi.des,
+              l: oi.l,
+              a: oi.a,
+              p: oi.p,
+            );
 
         if (estParent != null) {
-          final dbRows =
-              await homeScreenRepository.getFilhosEstruturDetalhado(estParent);
+          final dbRows = await homeScreenRepository.getFilhosEstruturDetalhado(
+            estParent,
+          );
           final dbMultiset = _aggregateMultisetEstrutur(dbRows);
           if (_multisetQtyIguais(expectedMultiset, dbMultiset)) {
             codpai = estParent;
           } else {
-            codpai = await executaEspecialESP0019(
-              codbatismocorte,
-              500,
-              8,
-              i + 1,
-              'P',
-            );
+            final memoPai = oi.codpaiReservadoMemo?.trim();
+            codpai =
+                (memoPai != null && memoPai.isNotEmpty)
+                    ? memoPai
+                    : await reservarCodigoEsp0019ComMemo(
+                      repository: homeScreenRepository,
+                      sqlServerConnected: sqlServerConnected.value,
+                      batismo: codbatismocorte,
+                      grupo: 500,
+                      subgrupo: 8,
+                      sequencia: i + 1,
+                      type: 'P',
+                      numeroXml: numeroXml,
+                      riga1: oi.riga1,
+                      itemPecaForMemo: null,
+                    );
           }
         } else {
-          codpai = await executaEspecialESP0019(
-            codbatismocorte,
-            500,
-            8,
-            i + 1,
-            'P',
-          );
+          final memoPai = oi.codpaiReservadoMemo?.trim();
+          codpai =
+              (memoPai != null && memoPai.isNotEmpty)
+                  ? memoPai
+                  : await reservarCodigoEsp0019ComMemo(
+                    repository: homeScreenRepository,
+                    sqlServerConnected: sqlServerConnected.value,
+                    batismo: codbatismocorte,
+                    grupo: 500,
+                    subgrupo: 8,
+                    sequencia: i + 1,
+                    type: 'P',
+                    numeroXml: numeroXml,
+                    riga1: oi.riga1,
+                    itemPecaForMemo: null,
+                  );
         }
       }
       codpaiPorModulo.add(codpai);
@@ -1166,9 +1362,15 @@ class HomeScreenController extends GetxController {
     List<Cadireta> listFilho = [];
     List<Map<String, dynamic>> listaPaiMap = [];
 
+    final itemboxesLoop = outlite.itembox ?? [];
+    _cadire2RefCadcontPorModulo = List<int?>.filled(
+      itemboxesLoop.length,
+      null,
+    );
+
     // Salva os dados do pai
-    for (var idx = 0; idx < (outlite.itembox ?? []).length; idx++) {
-      final oi = outlite.itembox![idx];
+    for (var idx = 0; idx < itemboxesLoop.length; idx++) {
+      final oi = itemboxesLoop[idx];
       contadorPai = contadorPai + 1;
       var despai = oi.des ?? '';
       final codpai = codpaiPorModulo[idx];
@@ -1177,7 +1379,7 @@ class HomeScreenController extends GetxController {
         cadpai: outlite.codpai,
         cadfilho: codpai,
         cadstatus: 'N',
-        cadsuscad: 'IMP3CAD',
+        cadsuscad: ConfIniService.cadiretaCadsuscad,
         cadpainome: outlite.rif,
         cadfilnome: despai,
         cadpaium: 'UN',
@@ -1239,12 +1441,17 @@ class HomeScreenController extends GetxController {
         if (double.parse(itemPeca.comprimento!) >= 0 &&
             double.parse(itemPeca.largura!) >= 0 &&
             double.parse(itemPeca.espessura!) >= 0) {
-          codpeca = await executaEspecialESP0019(
-            codbatismomodulo,
-            500,
-            8,
-            contadorFilho,
-            'F',
+          codpeca = await reservarCodigoEsp0019ComMemo(
+            repository: homeScreenRepository,
+            sqlServerConnected: sqlServerConnected.value,
+            batismo: codbatismomodulo,
+            grupo: 500,
+            subgrupo: 8,
+            sequencia: contadorFilho,
+            type: 'F',
+            numeroXml: numeroXml,
+            riga1: itemPeca.riga1 ?? oi.riga1,
+            itemPecaForMemo: itemPeca,
           );
         }
         if (codpaiOld != codpai) {
@@ -1256,7 +1463,7 @@ class HomeScreenController extends GetxController {
           cadpai: codpai,
           cadfilho: codpeca,
           cadstatus: 'N',
-          cadsuscad: 'IMP3CAD',
+          cadsuscad: ConfIniService.cadiretaCadsuscad,
           cadpainome: despai,
           cadfilnome: itemPeca.idpeca!,
           cadpaium: 'UN',
@@ -1309,15 +1516,36 @@ class HomeScreenController extends GetxController {
         if (error == "") {
           // Adicionar aos dados enviados apenas se salvamento foi bem-sucedido
           _sentCadiretaData.add(cadireta.toMap());
+          _estruturaCadire2Contexts.add((
+            cadcont: contadorItemPeca,
+            cadpai: codpai,
+            cadfilho: codpeca,
+            mat: itemPeca.matricula?.trim() ?? '',
+            fromDistinta: false,
+            cadinfprodPrg: '',
+          ));
+          if (_cadire2RefCadcontPorModulo[idx] == null) {
+            _cadire2RefCadcontPorModulo[idx] = contadorItemPeca;
+          }
         } else {
           saveOKCadireta.add(error);
         }
       }
     }
     contadorItemFilho = contadorItemPeca + 1;
+    /// Por cada peça RIGAX (`cadpai` = código da peça no módulo): primeiro `CODFIG` com FASE
+    /// preenchida na expansão da distinta (igual ao 1.º item “comprado” / 1.º da lista da UI).
+    final primeiroFilhoDistintaPorCadpai = <String, String>{};
     for (var lp in listaPaiMap) {
+      final rawArt = lp['codpecaArticoli'] as String?;
+      final rawPec = lp['codpeca'] as String?;
+      final codArt =
+          (rawArt != null && rawArt.trim().isNotEmpty)
+              ? rawArt.trim()
+              : rawPec?.trim();
+      if (codArt == null || codArt.isEmpty) continue;
       final result = await getEstruturaExpandida(
-        lp['codpeca'], // certo
+        codArt,
         lp['variaveis'], // certo
         lp['comprimento'], // certo
         lp['largura'], // certo
@@ -1330,14 +1558,19 @@ class HomeScreenController extends GetxController {
         List<Map<String, dynamic>> estrutura = List<Map<String, dynamic>>.from(
           json.decode(result),
         );
+        String? primeiroCodfigDistinta;
         for (var item in estrutura) {
           var fase = item['FASE'];
-          if (fase != '') {
+          if (fase != null && fase.toString().trim().isNotEmpty) {
             contadorItemCompra = contadorItemCompra + 1;
             if (codfilhoOld != lp['codpai']) {
               contadorItemFilho = contadorItemFilho + 1;
             }
             var nome = item['CODFIG'];
+            final codfigStr = nome?.toString().trim() ?? '';
+            if (primeiroCodfigDistinta == null && codfigStr.isNotEmpty) {
+              primeiroCodfigDistinta = codfigStr;
+            }
             var des = item['DESCRICAO'];
             var qta = item['QTA'];
             var grupo = await homeScreenRepository.getProdutoForId(
@@ -1365,7 +1598,7 @@ class HomeScreenController extends GetxController {
               cadpai: lp['codpai'],
               cadfilho: nome,
               cadstatus: 'N',
-              cadsuscad: 'IMP3CAD',
+              cadsuscad: ConfIniService.cadiretaCadsuscad,
               cadpainome: lp['idpeca'],
               cadfilnome: des,
               cadpaium: 'UN',
@@ -1429,6 +1662,10 @@ class HomeScreenController extends GetxController {
             listFilho.add(cadireta);
           }
         }
+        final cpaiKey = lp['codpai']?.toString().trim() ?? '';
+        if (cpaiKey.isNotEmpty && primeiroCodfigDistinta != null) {
+          primeiroFilhoDistintaPorCadpai[cpaiKey] = primeiroCodfigDistinta;
+        }
       }
     }
 
@@ -1447,6 +1684,23 @@ class HomeScreenController extends GetxController {
 
       if (error == "") {
         _sentCadiretaData.add(cadireta.toMap());
+        final m = cadireta.cadmatricula?.trim() ?? '';
+        final esperado = primeiroFilhoDistintaPorCadpai[cadireta.cadpai.trim()];
+        final ehPrimeiroFilhoDistinta =
+            esperado != null &&
+            cadireta.cadfilho.trim() == esperado;
+        // cadinfprod = código da peça RIGAX (mesma linha que cadmatricula / lista_corte).
+        final prod41 = cadireta.cadpai.trim();
+        if (m.isNotEmpty && ehPrimeiroFilhoDistinta && prod41.isNotEmpty) {
+          _estruturaCadire2Contexts.add((
+            cadcont: cadireta.cadcont,
+            cadpai: cadireta.cadpai.trim(),
+            cadfilho: cadireta.cadfilho.trim(),
+            mat: m,
+            fromDistinta: true,
+            cadinfprodPrg: prod41,
+          ));
+        }
       } else {
         saveOKCadireta.add(error);
       }
@@ -1546,9 +1800,11 @@ class HomeScreenController extends GetxController {
 
       for (var itembox in outliteData.value!.itembox!) {
         for (var itemPecas in itembox.itemPecas!) {
+          final codArt = itemPecas.codigoParaArticoli;
+          if (codArt == null || codArt.isEmpty) continue;
           final result = await getEstruturaExpandida(
-            itemPecas.codpeca!,
-            itemPecas.variaveis!,
+            codArt,
+            itemPecas.variaveis ?? '',
             itemPecas.comprimento!,
             itemPecas.largura!,
             itemPecas.espessura!,
@@ -1613,6 +1869,81 @@ getDateFormated(DateTime dateTime) {
   return DateTime.parse(formattedTime);
 }
 
+/// Extrai o primeiro grupo de dígitos do texto da tag XML [RIGA1] (ex.: `"8"` ou `"Linha 03"` → 8 ou 3).
+int? parseRiga1Numero(String? raw) {
+  if (raw == null || raw.trim().isEmpty) return null;
+  final m = RegExp(r'\d+').firstMatch(raw.trim());
+  if (m == null) return null;
+  return int.tryParse(m.group(0)!);
+}
+
+/// Chama [executaEspecialESP0019] e grava [ecadmaster.dbo.DT_memocodigos] quando o SQL Server está conectado.
+///
+/// **RIGA (módulo/pai):** sem matrícula — memo `R99` + [zeroPad] do número de [riga1] ([RIGA1]); se ausente, [sequencia].
+/// **DISTINTA (peça):** com matrícula, `mat` = `C` + parte da matrícula + dimensões; **sem** matrícula — `D99` + [zeroPad] (mesmo sufixo numérico).
+Future<String> reservarCodigoEsp0019ComMemo({
+  required HomeScreenRepository repository,
+  required bool sqlServerConnected,
+  required String batismo,
+  required int grupo,
+  required int subgrupo,
+  required int sequencia,
+  required String type,
+  required String numeroXml,
+  int? riga1,
+  ItemPecas? itemPecaForMemo,
+}) async {
+  final ip = itemPecaForMemo;
+  final mat = buildDtMemocodigosMat(
+    isRigaModulo: ip == null,
+    sequenciaFallback: sequencia,
+    riga1: riga1,
+    matricula: ip?.matricula,
+    comprimento: ip?.comprimento,
+    largura: ip?.largura,
+    espessura: ip?.espessura,
+  );
+
+  if (sqlServerConnected && numeroXml.trim().isNotEmpty) {
+    final existente = await repository.findCodforwoodMemocodigos(
+      numero: numeroXml,
+      mat: mat,
+    );
+    if (existente != null && existente.isNotEmpty) {
+      return existente;
+    }
+  }
+
+  final cod = await executaEspecialESP0019(
+    batismo,
+    grupo,
+    subgrupo,
+    sequencia,
+    type,
+  );
+
+  if (sqlServerConnected) {
+    final ok = await repository.insertDtMemocodigos(
+      numero: numeroXml,
+      mat: mat,
+      codforwood: cod,
+    );
+    if (!ok) {
+      AppLogger.w(
+        'ESP0019',
+        'Falha ao INSERT em DT_memocodigos (numero=$numeroXml mat=$mat).',
+      );
+    }
+  } else {
+    AppLogger.w(
+      'ESP0019',
+      'SQL Server desconectado; DT_memocodigos não atualizado.',
+    );
+  }
+
+  return cod;
+}
+
 Future<String> executaEspecialESP0019(
   String batismo,
   int grupo,
@@ -1658,15 +1989,15 @@ Future<String> executaEspecialESP0019(
       }
       // Se o arquivo existe mas não retornou código, usa a sequência da linha
       if (valorCodigo.isEmpty) {
-        return '$type"_"$sequencia';
+        return '${type}_$sequencia';
       }
     } else {
       // Se não gerou arquivo, usa a sequência da linha
-      return '$type"_"$sequencia';
+      return '${type}_$sequencia';
     }
   } catch (e) {
     // Em erro, usa a sequência da linha onde ocorreu o problema, não o codcont
-    return '$type"_"$sequencia';
+    return '${type}_$sequencia';
   }
 
   return valorCodigo;
